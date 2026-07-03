@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "pack": {
+    "source": "thomasluizon/agentic-dev-workflow",
+    "sourceType": "github",
+    "ref": "main",
+    "tool": "claude-code",
+    "installedPaths": [".claude/skills", ".claude/agents"],
+    "computedHash": "0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}

@@ -1,0 +1,205 @@
+# =============================================================================
+# agentic-dev-workflow — project configuration
+# =============================================================================
+# Copy this file to `workflow.config.yaml` at the root of the project you are
+# installing the pack into, then fill in the values for your project.
+#
+# Every project-specific value the skill pack needs lives HERE. The skill bodies
+# in `core/` contain zero project names, paths, or vendor strings — they read
+# everything through this file. A field marked "optional" can be omitted or left
+# empty; the skills that consume it degrade gracefully (the relevant check is
+# reported as N/A rather than failing).
+#
+# Convention used by the skills: `{{config.<path>}}` in a skill body means "read
+# this value from this file". If a referenced optional value is absent, the skill
+# skips that step and records it in its Deferred ledger.
+# =============================================================================
+
+# Human-readable project name. Used in report headers and PR titles.
+projectName: Acme App
+
+# ---------------------------------------------------------------------------
+# repos — 1..N repositories this workflow spans.
+# A single-repo project lists one entry. A split frontend/backend (or any
+# multi-repo) project lists each. `role` is a free-form label the skills surface
+# in reports and use to route work ("frontend", "backend", "shared", "infra").
+# The *Cmd fields are the exact shell commands the `validate` skill runs; leave a
+# command empty ("") if the repo has no such step and it will be skipped.
+# ---------------------------------------------------------------------------
+repos:
+  - name: acme-web
+    path: /absolute/path/to/acme-web        # absolute path on the dev machine
+    role: frontend
+    testCmd: npm test
+    lintCmd: npm run lint
+    typeCheckCmd: npm run type-check
+    buildCmd: npm run build
+  # A second repo is OPTIONAL. Delete this block for a single-repo project.
+  - name: acme-api
+    path: /absolute/path/to/acme-api
+    role: backend
+    testCmd: dotnet test
+    lintCmd: ""                              # empty → validate skips linting this repo
+    typeCheckCmd: ""
+    buildCmd: dotnet build
+
+# ---------------------------------------------------------------------------
+# branchNaming — the branch-name grammar the pipeline creates work on.
+# `{n}` interpolates an issue number, `{slug}` a kebab title, `{type}` one of
+# the prefixes.
+# ---------------------------------------------------------------------------
+branchNaming:
+  pattern: "{type}/{n}-{slug}"
+  types: [feature, fix, chore, refactor, docs]
+  protectedBranches: [main]                  # never commit directly to these
+
+# ---------------------------------------------------------------------------
+# pr — how the `ship` and `pr-review` skills open and reason about PRs.
+# ---------------------------------------------------------------------------
+pr:
+  baseBranch: main
+  squash: true                               # squash-merge only
+  pairedPRs: true                            # multi-repo change → one PR per repo, cross-linked
+  # Trailer appended to every commit message the pack creates. Optional.
+  commitTrailer: ""
+  # Footer appended to every PR body the pack creates. Optional.
+  prBodyFooter: ""
+
+# ---------------------------------------------------------------------------
+# worktree — where the pipeline creates git worktrees for isolated issue work.
+# `prime` and `implement` inline `git worktree add` using these values.
+# ---------------------------------------------------------------------------
+worktree:
+  root: .worktrees                           # relative to each repo root
+  branchPattern: "issue-{n}"
+
+# ---------------------------------------------------------------------------
+# paths — where the skills write their working artifacts (PRDs, stories,
+# research notes, review + audit reports). All relative to the consumer repo
+# root; directories are created on demand.
+# ---------------------------------------------------------------------------
+paths:
+  workflowDir: .workflow            # base dir for workflow artifacts
+  plansDir: .workflow/plans         # `plan` output; `execute` + `implement` read from here
+  prdsDir: .workflow/prds           # `prd` output
+  storiesDir: .workflow/stories     # `stories` output
+  researchDir: .workflow/research   # `deep-research` output
+  reportsDir: .workflow/reports     # `pr-review` + `implement` completion reports
+  auditsDir: .workflow/audits       # audit + `prod-readiness` output
+
+# ---------------------------------------------------------------------------
+# conventionsDocs — the docs the `prime` skill loads to build project context
+# (equivalents of CLAUDE.md / AGENTS.md / DESIGN.md / CONTRIBUTING.md).
+# Paths are relative to a repo root; list per-repo or shared. Optional but
+# strongly recommended — prime is far weaker without them.
+# ---------------------------------------------------------------------------
+conventionsDocs:
+  - CLAUDE.md
+  - AGENTS.md
+  - CONTRIBUTING.md
+  # - DESIGN.md            # design-token source of truth, if the project has one
+
+# ---------------------------------------------------------------------------
+# parity — OPTIONAL. Only for projects that mirror code across two surfaces
+# (e.g. a web app and a mobile app that must stay feature-identical). When set,
+# `pr-review` runs the parity dimension; absent → parity reported N/A.
+# `mirror` pairs are glob roots that must change together.
+# ---------------------------------------------------------------------------
+parity:
+  enabled: false
+  mirrors:
+    # - from: apps/web/**
+    #   to: apps/mobile/**
+  # Human note surfaced when a parity gap is found.
+  note: ""
+
+# ---------------------------------------------------------------------------
+# i18n — OPTIONAL. Only for projects with translated user-facing strings. When
+# `locales` is non-empty, `pr-review` runs the i18n dimension (every key must
+# exist in every locale file). Absent → i18n reported N/A.
+# ---------------------------------------------------------------------------
+i18n:
+  locales: []                                # e.g. [en, pt-BR]
+  paths: []                                  # e.g. [packages/shared/src/i18n]
+  # Brand/proper nouns that must never be translated.
+  doNotTranslate: []
+
+# ---------------------------------------------------------------------------
+# contract — OPTIONAL. Only for multi-repo projects with a typed API contract
+# shared between a client and a server (e.g. Zod/DTO drift). When set AND
+# repos.length > 1, `pr-review` runs the contract + backward-compat guard.
+# Absent → contract reported N/A.
+# ---------------------------------------------------------------------------
+contract:
+  enabled: false
+  # Where the shared/client-side contract types live.
+  clientTypesGlob: ""                        # e.g. packages/shared/src/types/**
+  # Where the server-side types/DTOs live.
+  serverTypesGlob: ""                        # e.g. src/**/Dtos/**
+  # Backward-compatibility policy the guard enforces on contract changes.
+  backwardCompat:
+    enabled: false
+    policy: append-only                      # additive by default; breaking → expand-contract
+    # How old clients are gated when a break is unavoidable (free-form note).
+    minVersionGate: ""
+
+# ---------------------------------------------------------------------------
+# review — how `pr-review` and the audits find their rubric and calibrate.
+# ---------------------------------------------------------------------------
+review:
+  # Path (relative to the pack install root) to the rubric the review + audit
+  # skills score against. Ships as core/review/pr-review.rubric.example.md;
+  # copy + customize it for your project's standards.
+  rubricPath: pr-review.rubric.md
+  # Framework-specific hard rules the generic security-reviewer layers on top of
+  # its generic categories. Free-form bullet strings. Optional.
+  backendHardRules: []
+    # - "Every query/command handler has a FluentValidation validator."
+  # Named security-relevant framework tokens the reviewer greps for. Optional.
+  frameworkTokens: []
+    # - "[Authorize]"
+    # - "httpOnly"
+
+# ---------------------------------------------------------------------------
+# auditAnchors — anchors the audit skills calibrate severity against, so a
+# solo-dev side project and an enterprise system get proportionate findings.
+# ---------------------------------------------------------------------------
+auditAnchors:
+  # Scale of the system — drives what severity is "worth reporting".
+  scale: solo                                # solo | team | enterprise
+  # Tiers of trust boundary the security audit treats as in-scope.
+  securityTiersInScope: [1, 2]               # e.g. Tier 3 = enterprise-only, out of scope
+  # Critical paths the test audit must confirm are covered.
+  criticalPaths: []                          # e.g. [auth, billing, ai-tools]
+  # Hot zones the performance audit weights first.
+  performanceHotZones: []                    # e.g. [request-handlers, list-queries]
+
+# ---------------------------------------------------------------------------
+# research — calibrates `deep-research` and `llm-council` recommendations to the
+# project's real constraints (budget, scale, team size) instead of generic
+# best-practice.
+# ---------------------------------------------------------------------------
+research:
+  costCalibration: "Solo developer, minimize recurring cost; prefer boring, well-supported tooling."
+  constraints: []                            # free-form constraint bullets
+
+# ---------------------------------------------------------------------------
+# issueTracker — where `stories`/`feature` create issues and `prime` reads them.
+# ---------------------------------------------------------------------------
+issueTracker:
+  host: github                               # github | gitlab | linear | none
+  repo: your-org/your-repo                   # the backlog repo (owner/name)
+  # Labels the stories skill applies; leave empty to apply none.
+  labels: []                                 # e.g. [enhancement, needs-triage]
+  milestones: []
+
+# ---------------------------------------------------------------------------
+# execution — how orchestrator skills adapt to the host tool's capabilities.
+# The pack degrades gracefully: if the host lacks parallel subagents, a named
+# agent registry, or hooks, every orchestrator falls back to running the same
+# steps sequentially. These flags let you force that fallback.
+# ---------------------------------------------------------------------------
+execution:
+  maxParallelSubagents: 3                     # 0 or 1 → force sequential fallback
+  hasNamedAgentRegistry: true                 # false → orchestrators inline their sub-steps
+  hasHooks: false                             # the pack never requires hooks

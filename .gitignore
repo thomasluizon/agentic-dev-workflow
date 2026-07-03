@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.DS_Store
+.env
+.env.*
+/tmp/
+scratch-consumer/
+
+# A consumer's real config never belongs in this repo — only the example is tracked.
+workflow.config.yaml
+skills-lock.json
