@@ -1,0 +1,47 @@
+{
+  "_comment": "Example hooks.policy.json — the runtime policy the dual-target hook engine reads (JSON so the hooks have ZERO runtime deps; setup-harness derives it from workflow.config.yaml + the interview and writes the real one). Copy to hooks.policy.json at your project root (project overrides a global ~/.claude/hooks.policy.json, both over the built-in DEFAULT_POLICY). Every value shown is illustrative — NONE is assumed by the pack. Delete the _comment keys; the loader ignores them but they are noise.",
+
+  "git": {
+    "_comment": "Deterministic git-workflow invariants (Claude Code PreToolUse(Bash) + opencode tool.execute.before). protectedBranches/blockNoVerify/blockNoGpgSign default safe; the rest are OFF until set here.",
+    "protectedBranches": ["main"],
+    "blockNoVerify": true,
+    "blockNoGpgSign": true,
+    "blockPushToProtected": true,
+    "branchPattern": "^(feature|fix|chore|refactor|docs)/",
+    "branchExceptions": ["hotfix/*"],
+    "ticketPattern": "",
+    "forbiddenTrailers": [],
+    "largeBinaryGlobs": ["*.mp4", "*.mov", "*.zip", "*.psd"]
+  },
+
+  "content": {
+    "_comment": "Content invariants scanning the text an edit introduces (never the whole file). Each rule is independently path-scoped: a scope narrows a rule, it never disables it.",
+    "emDash": {
+      "enabled": true,
+      "allowNumericEnDash": true,
+      "scope": { "include": ["**/i18n/**", "**/email/**", "**/*.md"], "exclude": ["CHANGELOG.md"] }
+    },
+    "bannedPhrases": {
+      "enabled": false,
+      "phrases": [],
+      "scope": null
+    },
+    "secretScan": {
+      "enabled": true,
+      "extraPatterns": [],
+      "scope": { "exclude": ["**/__tests__/**", "**/*.test.*", "**/*.spec.*", "**/fixtures/**", "**/__fixtures__/**"] }
+    },
+    "largeBinary": {
+      "enabled": false,
+      "maxBytes": 5242880,
+      "blockedGlobs": ["*.mp4", "*.zip"],
+      "scope": null
+    }
+  },
+
+  "proactivity": {
+    "_comment": "The disposition gate. Layer 1 (reminder) re-injects one line each turn. Layer 2 (guard) reviews the finished turn with a cheap judge model and, on a clear shortcut, sends it back (Claude Code Stop) or nudges (opencode session.idle). Empty judgeModel disables Layer 2 — never pin a model that may retire.",
+    "reminder": { "enabled": true },
+    "guard": { "enabled": false, "judgeModel": "", "skillDirs": [] }
+  }
+}

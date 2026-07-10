@@ -1,0 +1,10 @@
+# Executable engine files (hooks, plugins, Workflow scripts, logic core) must be
+# LF on every platform: Node/Bun run them directly, and the Claude Code Workflow
+# tool rejects CR as a control character. Normalize regardless of core.autocrlf.
+*.mjs text eol=lf
+*.js text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

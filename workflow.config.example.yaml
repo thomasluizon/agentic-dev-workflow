@@ -60,10 +60,15 @@ pr:
   baseBranch: main
   squash: true                               # squash-merge only
   pairedPRs: true                            # multi-repo change → one PR per repo, cross-linked
-  # Trailer appended to every commit message the pack creates. Optional.
+  # Trailer appended to every commit message the pack creates. Optional. A
+  # machine that BANS authorship trailers leaves this empty and lists the banned
+  # trailer under `hooks.git.forbiddenTrailers` — the exact inverse. Neither is
+  # assumed; both are pure policy.
   commitTrailer: ""
   # Footer appended to every PR body the pack creates. Optional.
   prBodyFooter: ""
+  # Trailer strings a commit/PR body must NOT contain (hook-enforced). Optional.
+  forbiddenTrailers: []
 
 # ---------------------------------------------------------------------------
 # worktree — where the pipeline creates git worktrees for isolated issue work.
@@ -217,6 +222,9 @@ issueTracker:
   # Labels the stories skill applies; leave empty to apply none.
   labels: []                                 # e.g. [enhancement, needs-triage]
   milestones: []
+  # Regex a commit message must contain when a ticket ref is required
+  # (hook-enforced via hooks.git.ticketPattern). Empty → not enforced.
+  ticketPattern: ""                          # e.g. "\\b[A-Z]{2,}-\\d+\\b"
 
 # ---------------------------------------------------------------------------
 # execution — how orchestrator skills adapt to the host tool's capabilities.
@@ -233,3 +241,53 @@ execution:
   # synthesis. Empty → every step uses the session's default model. Only takes
   # effect when the host supports per-subagent model selection.
   cheapSubagentModel: ""
+
+# ---------------------------------------------------------------------------
+# hooks — the SOURCE for the dual-target hook engine's runtime policy. setup
+# reads this block (plus branchNaming / pr / issueTracker above) and WRITES
+# `hooks.policy.json`, which the Claude Code hooks AND the opencode plugin read
+# at runtime (JSON so the hooks need no YAML parser). You do not hand-edit
+# hooks.policy.json — it is a generated artifact. Every field mirrors
+# hooks.policy.example.json; see core/hooks/README.md for the engine design.
+#
+# ZERO policy is assumed: a machine that bans authorship trailers and one that
+# requires them differ only by `git.forbiddenTrailers` vs `pr.commitTrailer`.
+# Every content/git rule takes an optional `scope: { include, exclude }` — a
+# carve-out narrows a rule, it never disables it.
+# ---------------------------------------------------------------------------
+hooks:
+  git:
+    protectedBranches: [main]                # commit/push to these is blocked; empty → off
+    blockBypassFlags: true                   # block --no-verify / commit -n
+    requireSignedCommits: false              # block --no-gpg-sign / gpgsign=false
+    branchPattern: ""                        # regex new branch names must match; e.g. "^(feature|fix)/"
+    branchExceptions: []                     # globs exempt from branchPattern; e.g. ["hotfix/*"]
+    ticketPattern: ""                        # regex a -m commit message must contain; empty → off
+    forbiddenTrailers: []                    # commit/PR body must not contain these strings
+    largeBinaryGlobs: []                     # block `git add` of matching paths; e.g. ["*.mp4", "*.zip"]
+  content:
+    emDash:
+      enabled: false                         # flag em dashes newly written into scoped copy
+      allowNumericEnDash: true               # keep en dashes in numeric ranges (1–10)
+      scope: null                            # { include: [...], exclude: [...] }
+    bannedPhrases:
+      enabled: false
+      phrases: []                            # strings or regex sources
+      scope: null
+    secretScan:
+      enabled: true                          # conservative universal set; on by default
+      extraPatterns: []                      # project-specific secret regexes
+      scope:
+        exclude: ["**/__tests__/**", "**/*.test.*", "**/*.spec.*", "**/fixtures/**"]
+    largeBinary:
+      enabled: false
+      maxBytes: 5242880                      # 5 MB
+      blockedGlobs: []
+      scope: null
+  proactivity:
+    reminder:
+      enabled: true                          # Layer 1: re-inject the disposition line each turn
+    guard:
+      enabled: false                         # Layer 2: judge the finished turn, send it back on a shortcut
+      judgeModel: ""                         # cheap model slug; EMPTY disables Layer 2 (never pin a retirable model)
+      skillDirs: []                          # skill dirs the judge digests; empty → sensible defaults
