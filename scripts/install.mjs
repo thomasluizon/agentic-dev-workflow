@@ -30,12 +30,6 @@ const layouts = {
     coreSubdir: ".opencode/skills/_core",
     agentsSubdir: ".opencode/agents",
   },
-  codex: {
-    adapterSkillsDir: "prompts",
-    skillsSubdir: ".codex/prompts",
-    coreSubdir: ".codex/prompts/_core",
-    agentsSubdir: null,
-  },
 };
 
 function hashTree(dir) {

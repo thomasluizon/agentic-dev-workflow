@@ -1,11 +1,16 @@
-# deep-research
+---
+name: handoff
+description: Compact the current session into a resumable handoff document a fresh agent can pick up from.
+argument-hint: [note]
+---
+# handoff
 
-Answer an open-ended best-way question with orchestrated, adversarially-verified multi-agent web research.
+Compact the current session into a resumable handoff document a fresh agent can pick up from.
 
 **This is a thin adapter.** The full, tool-agnostic instructions live in the pack core.
 Read and follow the core skill body, then execute its steps against this project:
 
-> **Core body:** `_core/research/deep-research.md`
+> **Core body:** `../_core/meta/handoff.md`
 
 Resolve every `{{config.*}}` reference in the core body against this project's
 `workflow.config.yaml` (at the project root). If a referenced optional config value is

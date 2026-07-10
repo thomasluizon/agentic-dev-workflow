@@ -1,11 +1,14 @@
-# audit-code-quality
+---
+description: Capture a correction as a gated, graduating lesson — staged for approval, then promoted to a hook/lint rule or a scoped note.
+---
+# lesson
 
-Repo-wide code-quality audit against the shared rubric: dead code, SOLID, DRY, naming, size.
+Capture a correction as a gated, graduating lesson — staged for approval, then promoted to a hook/lint rule or a scoped note.
 
 **This is a thin adapter.** The full, tool-agnostic instructions live in the pack core.
 Read and follow the core skill body, then execute its steps against this project:
 
-> **Core body:** `_core/review/audit-code-quality.md`
+> **Core body:** `../_core/meta/lesson.md`
 
 Resolve every `{{config.*}}` reference in the core body against this project's
 `workflow.config.yaml` (at the project root). If a referenced optional config value is
