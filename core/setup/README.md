@@ -1,15 +1,18 @@
-# setup-harness detection + interview machinery
+# setup-harness machinery
 
-The read-only, dependency-free Node modules that `setup-harness.md` drives to
-*research the machine*, *discover the repos*, and *run the adaptive grill-me
-interview*. The runbook (the skill body) is the AI-facing procedure; these are the
-deterministic parts it calls so detection and the resumable record are exact, not
-guessed. Everything here is **read-only** — nothing runs a project's build/test,
-starts a server, or mutates state.
+The dependency-free Node modules that `setup-harness.md` drives to *research the
+machine*, *interview for what it can't see*, *decode every rule to its tier*, and
+— behind an approval gate — *generate a tailored harness*. The runbook (the skill
+body) is the AI-facing procedure; these are the deterministic parts it calls so
+detection, tiering, generation, and verification are exact, not guessed. Phases
+0–5 are **read-only**; nothing enforcing is written until the user approves the
+decomposition (phase 8).
 
 ```
 core/setup/
-  setup-harness.md   ← the gated runbook (phases: research → discover → interview → docs → tracker)
+  setup-harness.md   ← the gated runbook (research → interview → decode → gate → generate → verify)
+
+  --- interview half (read-only) ---
   detect.mjs         ← OS/shell, installed CLIs (which/where + safe --version), git remotes+host,
                        CI configs, convention docs, MCP servers (~/.claude.json), inferred commands
   commands.mjs       ← infer test/lint/typecheck/build from package.json / *.csproj / pyproject.toml /
@@ -23,30 +26,54 @@ core/setup/
                        by availability, not a blanket MCP-first rule
   docs.mjs           ← classify doc pointers (explicit link vs taught source) + extract every normative
                        statement ("must/never/always/required", hard vs soft) from fetched text
+
+  --- generate half (gated) ---
+  decode.mjs         ← classify EVERY rule/statement to its tier (HOOK/LINT/RULE/FACT/SKILL) + flag
+                       conflicts inline (always-ask precedence, nothing auto-resolved)
+  gate.mjs           ← render the ONE editable decomposition table (harness.decomposition.md), parse
+                       the user's edits back, apply them, and report unresolved conflicts
+  generate.mjs       ← build every artifact from the approved rows: hooks.policy.json, workflow.config.yaml,
+                       CLAUDE.md, rules, lint scaffolds (strongest layer), machine-specialized/new skills
+  adopt.mjs          ← adopt-vs-reset: back up an existing CLAUDE.md/hooks/rules to a timestamped folder,
+                       then decompose the old prose into decode candidates (nothing lost)
+  manifest.mjs       ← the versioned harness.manifest.json — each artifact traced to its answers rows +
+                       hashed, so a re-run/sync preserves hand-edits (detectHandEdits)
+  verify.mjs         ← post-generation self-verify: config/policy parse, skills load, and a guardrail
+                       dry-run (a protected-branch push must BLOCK) + a gaps report; never throws
 ```
 
 ## What each phase produces
 
-`setup-harness` runs these in order and records to `harness.answers.yaml`:
+`setup-harness` runs these in order, recording to `harness.answers.yaml` and then
+generating from it:
 
 1. **Research** (`detect.mjs` + `commands.mjs`) → a machine profile; inferred commands shown for confirm.
 2. **Discover** (`discovery.mjs`) → the confirmed repo set (current + workspace + siblings).
 3. **Interview** (`questions.mjs` + `answers.mjs`) → each core question + its active follow-ups, written incrementally.
 4. **Docs** (`docs.mjs`) → normative statements extracted from fetched policy docs, deduped and tagged.
 5. **Tracker** (`trackers.mjs`) → the best available tool for the chosen tracker.
+6. **Adopt** (`adopt.mjs`, if an existing setup) → backup + old prose decomposed into decode candidates.
+7. **Decode** (`decode.mjs`) → every rule tiered; conflicts flagged.
+8. **Gate** (`gate.mjs`) → the editable decomposition table; user edits + approves.
+9. **Generate** (`generate.mjs` + `manifest.mjs`) → the artifacts + the versioned manifest.
+10. **Verify** (`verify.mjs`) → parse + load + guardrail dry-run + gaps report.
 
-## Where it stops
+## The gate is load-bearing
 
-This is the **first half** of the installer: it *inspects and records*. It writes
-nothing enforcing — no `CLAUDE.md`, rule, hook, or `hooks.policy.json`. The decode
-→ gate → generate step reads `harness.answers.yaml` (the durable, resumable record
-that also explains *why* each future artifact exists) and does the tiering,
-approval gate, and generation.
+Nothing enforcing — no `CLAUDE.md`, rule, hook, or `hooks.policy.json` — is written
+before phase 8. The decode step proposes; the user edits `harness.decomposition.md`
+and says "go"; only then does generate run. Precedence on any conflict is
+**always-ask** — the gate flags every disagreement and refuses to proceed while one
+is unsettled.
 
 ## Genericity + proof
 
 Everything here lives under `core/`, so `scripts/check-genericity.mjs` guarantees
-no project string or baked SDLC policy leaks in — a tracker's CLI verbs are held as
+no project string or baked SDLC policy leaks in — the decode classifier keys on
+generic tokens (never the literal trailer string), a tracker's CLI verbs are held as
 argument arrays, policy questions are neutral (required / banned / none are equal
-options). `node scripts/test-setup.mjs` proves every module against the pack's own
-repo, throwaway fixture trees, and an answers YAML round-trip; CI gates on it.
+options). `node scripts/test-setup.mjs` proves the interview half; `node
+scripts/test-generate.mjs` proves the generate half — the worked-example acceptance
+table (each free-form rule → its tier), conflict flagging, the gate round-trip, the
+generators, adopt, the manifest, and the self-verify guardrail dry-run. CI gates on
+both.

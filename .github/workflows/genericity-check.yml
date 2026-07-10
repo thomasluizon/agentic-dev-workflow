@@ -19,6 +19,8 @@ jobs:
         run: node scripts/test-hook-engine.mjs
       - name: setup-harness machinery proof (detect / commands / discovery / questions / answers / trackers / docs)
         run: node scripts/test-setup.mjs
+      - name: setup-harness generate proof (decode / gate / generate / adopt / manifest / self-verify)
+        run: node scripts/test-generate.mjs
       - name: skill/agent adapters are in sync with the manifest
         run: |
           node scripts/gen-adapters.mjs
