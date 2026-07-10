@@ -45,7 +45,7 @@ const skills = [
   ["investigate", "ops/investigate.md", "Root-cause a production incident end to end against the configured error tracker, deploy platform, prod data, and code — read-only until a human gate.", "[issue-id | url | description]"],
   ["handoff", "meta/handoff.md", "Compact the current session into a resumable handoff document a fresh agent can pick up from.", "[note]"],
   ["lesson", "meta/lesson.md", "Capture a correction as a gated, graduating lesson — staged for approval, then promoted to a hook/lint rule or a scoped note.", "[the lesson]"],
-  ["setup-harness", "setup/setup-harness.md", "Research the machine (read-only), discover the repos, and run the adaptive grill-me interview + doc-source collection that a tailored harness is generated from; records to a resumable harness.answers.yaml and stops before the decode/gate/generate step.", "[--express] [--resume]"],
+  ["setup-harness", "setup/setup-harness.md", "Stand up a tailored harness end to end: research the machine (read-only), run the adaptive grill-me interview + doc decode, classify every rule to its enforcement tier, present the editable decomposition-table gate, and on approval generate CLAUDE.md / rules / dual-target hooks / lint rules / config / machine-specialized skills — with adopt-vs-reset backup, a versioned manifest, and a post-generation self-verify (incl. a guardrail dry-run). Resumable via harness.answers.yaml.", "[--express] [--resume]"],
 ];
 
 const agent = ["security-reviewer", "agents/security-reviewer.md", "Generic security-review agent: authz, webhook signatures, sessions, CORS, input size, rate limits, secret logging."];
