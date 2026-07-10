@@ -16,7 +16,7 @@ project strings and zero baked-in policy constants.
 
 | | CORE (ships in this repo) | OVERLAY (generated per project by `/setup-harness`) |
 |---|---|---|
-| **What** | The behavioral baseline + proactivity guard, the generic pipeline / review / intake / research / ops / meta skills, the `second-opinion` skill, the dual-target hook-template library, and `/setup-harness` itself. | `CLAUDE.md` facts, `.claude/rules/*`, `hooks.policy.json` (dual-target enforcement), lint scaffolds, `workflow.config.yaml`, machine-specialized skills. |
+| **What** | The behavioral baseline + proactivity guard, the generic pipeline / review / intake / research / ops / meta skills, the `second-opinion` skill, the dual-target hook-template library, and `/setup-harness` + `/update-harness` themselves. | `CLAUDE.md` facts, `.claude/rules/*`, `hooks.policy.json` (dual-target enforcement), lint scaffolds, `workflow.config.yaml`, machine-specialized skills. |
 | **Where** | `~/.claude` (machine-wide), installed once by `bootstrap.mjs`. | `<project>/.claude` + project root, decoded from your interview + docs. |
 | **Portable?** | Yes — no project strings, no policy constants. | No — it *is* your project's policy. |
 
@@ -92,6 +92,17 @@ update — you know a process changed and bring it (it decodes only the delta, g
 `node scripts/sync.mjs` is the *deterministic* re-apply from the saved answers. Refresh
 the machine-wide CORE itself by re-running `node bootstrap.mjs`.
 
+**Proactive drift — `/update-harness` (monthly, web-grounded).** Once a month, run
+`/update-harness`. It audits the *installed* harness for staleness you don't know about —
+a model pin a newer release superseded, a deprecated API/flag/tool, a drifted reference, an
+install that's fallen behind the pack's CORE, and new Claude Code / opencode capabilities
+worth adopting — and **every "X is stale" claim cites a live web source** (never memory). It
+presents a gated proposal; on approval it fixes this machine's install and, for any CORE
+drift, emits a proposed upstream change to the pack. `bootstrap.mjs` seeds the monthly clock
+(`~/.claude/harness.update.json`); the skill resets it each run and prints the next due date.
+This is the *proactive* counterpart to `/setup-harness`'s *reactive* re-run: the web is the
+source of truth, not you.
+
 ## Enforcement — the dual-target hook engine
 
 Skills are procedures; some rules must be **enforced**, not suggested. Every enforceable
@@ -113,7 +124,7 @@ runtime deps) — **no SDLC constant is baked in**. See `core/hooks/README.md`.
 | **Intake** | `feature` (idea → PRD → issues) · `prd` (warm or cold) · `stories` (PRD → tracer-bullet issues) |
 | **Research** | `deep-research` · `llm-council` |
 | **Ops** | `investigate` (root-cause a prod incident end to end, read-only until a human gate) |
-| **Meta** | `handoff` (compact a session to resume clean) · `lesson` (capture a correction as a graduating gate) |
+| **Meta** | `handoff` (compact a session to resume clean) · `lesson` (capture a correction as a graduating gate) · `update-harness` (monthly, web-grounded staleness audit) |
 | **Setup** | `setup-harness` (research → discover → interview → doc decode → tier every rule → the editable gate → generate + self-verify) |
 | **Agents** | `security-reviewer` (generic; parity / i18n / contract checks are config-gated inside `pr-review`) |
 
@@ -182,8 +193,8 @@ which fails the build on two classes of leak:
   The **hook engine** adapters (`hooks/`, `plugin/`, `workflows/`) are authored shells,
   preserved across regeneration — edit them directly.
 - CI runs every gate on push + PR: `check-genericity`, `test-hook-engine`, `test-setup`,
-  `test-generate`, `test-wiring`, `test-bootstrap`, and the adapters-in-sync check. All
-  must stay green.
+  `test-generate`, `test-wiring`, `test-bootstrap`, `test-update-harness`, and the
+  adapters-in-sync check. All must stay green.
 
 ## License
 

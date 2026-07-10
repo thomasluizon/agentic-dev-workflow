@@ -28,6 +28,7 @@ import os from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { hashTree } from "./install.mjs";
+import { seedUpdateState, dueReport } from "../core/meta/staleness.mjs";
 
 const packRootDefault = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -213,6 +214,10 @@ export function bootstrap({ claudeDir, packRoot = packRootDefault, wireHooks = t
   };
   writeFileSync(join(root, BOOTSTRAP_MANIFEST), JSON.stringify(manifest, null, 2) + "\n");
 
+  // Start the /update-harness monthly clock at install time (never resets an
+  // existing one, so re-running bootstrap doesn't push the next check out).
+  const updateClock = seedUpdateState(root, { installedAt: generatedAt });
+
   const skills = items.filter((i) => i.type === "skill").map((i) => i.name);
   return {
     claudeDir: root,
@@ -220,6 +225,7 @@ export function bootstrap({ claudeDir, packRoot = packRootDefault, wireHooks = t
     skills,
     hasSetupHarness: skills.includes("setup-harness"),
     hasUpdateHarness: skills.includes("update-harness"),
+    updateClock,
     pruned,
     hooks,
   };
@@ -241,13 +247,16 @@ function parseArgs(argv) {
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const args = parseArgs(process.argv.slice(2));
-    const report = bootstrap({ ...args, generatedAt: new Date().toISOString() });
+    const now = new Date().toISOString();
+    const report = bootstrap({ ...args, generatedAt: now });
     console.log(`Installed the CORE harness into ${report.claudeDir}`);
     console.log(`  ${report.skills.length} skills · agents · hooks · workflows · _core (coreHash ${report.manifest.coreHash.slice(0, 12)}…)`);
-    console.log(`  /setup-harness ${report.hasSetupHarness ? "installed" : "MISSING"}${report.hasUpdateHarness ? " · /update-harness installed" : " · /update-harness not built yet (arrives in a later pack)"}`);
+    console.log(`  /setup-harness ${report.hasSetupHarness ? "installed" : "MISSING"} · /update-harness ${report.hasUpdateHarness ? "installed" : "MISSING"}`);
     if (report.hooks.added.length) console.log(`  wired proactivity hooks: ${report.hooks.added.join(", ")}`);
     else if (args.wireHooks) console.log(`  proactivity hooks already wired`);
     if (report.pruned.length) console.log(`  pruned ${report.pruned.length} stale item(s) from a previous install`);
+    const clock = dueReport(report.claudeDir, now);
+    if (clock.nextDueAt) console.log(`  next /update-harness check due ${clock.nextDueAt.slice(0, 10)} (monthly, web-grounded)`);
     console.log(`\nNext: open any project and run  /setup-harness  to generate its tailored overlay.`);
   } catch (err) {
     console.error(String(err.message || err));
