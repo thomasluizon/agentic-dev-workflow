@@ -42,7 +42,7 @@ const layouts = {
   },
 };
 
-function hashTree(dir) {
+export function hashTree(dir) {
   const hash = createHash("sha256");
   const files = [];
   (function walk(d) {

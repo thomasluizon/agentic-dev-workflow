@@ -23,6 +23,8 @@ jobs:
         run: node scripts/test-generate.mjs
       - name: pipeline wiring proof (skills read config.*, no hardcoded tracker / trailer / merge / branch prefix)
         run: node scripts/test-wiring.mjs
+      - name: bootstrap + lifecycle proof (global install / manifest / hooks-wiring / sync preserves hand-edits)
+        run: node scripts/test-bootstrap.mjs
       - name: skill/agent adapters are in sync with the manifest
         run: |
           node scripts/gen-adapters.mjs
