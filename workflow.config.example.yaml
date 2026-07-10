@@ -217,8 +217,15 @@ investigate:
 # issueTracker — where `stories`/`feature` create issues and `prime` reads them.
 # ---------------------------------------------------------------------------
 issueTracker:
-  host: github                               # github | gitlab | linear | none
+  host: github                               # github | gitlab | azure | jira | linear | bitbucket | none
   repo: your-org/your-repo                   # the backlog repo (owner/name)
+  # The tool setup-harness RESOLVED for this tracker (host + best available tool:
+  # a CLI, an MCP, or a REST fallback), per the per-tracker driver table. The
+  # issue-creating/reading pipeline skills (prime / plan / implement / stories)
+  # drive issue ops through THIS descriptor instead of assuming any one CLI.
+  # AI-managed — setup writes it; do not hand-edit. Examples: "gh CLI",
+  # "Atlassian/Jira MCP", "Linear MCP", "GitLab REST API via WebFetch".
+  driver: ""
   # Labels the stories skill applies; leave empty to apply none.
   labels: []                                 # e.g. [enhancement, needs-triage]
   milestones: []

@@ -51,8 +51,14 @@ const forbidden = [
 
 // Hardcoded SDLC policy that belongs in workflow.config.yaml. `allowIfConfigRef`
 // exempts a line that also references `{{config.*}}` — the constant is then an
-// inline illustration of a config-driven behavior, not a baked-in assumption.
+// inline illustration of a config-driven behavior, not a baked-in assumption. A
+// leak may narrow the exemption to a SPECIFIC config subtree via `refPattern`:
+// a hardcoded tracker/forge CLI is an illustration only when the SAME line drives
+// off `config.issueTracker` / `config.pr`, not when it merely happens to mention
+// an unrelated config value (e.g. `config.paths.*`) — that coincidence must not
+// launder a baked-in `gh`.
 const CONFIG_REF = /\{\{\s*config\./;
+const TRACKER_CONFIG_REF = /\{\{\s*config\.(?:issueTracker|pr)\b/;
 const policyLeaks = [
   {
     label: "hardcoded commit trailer — lift to config.pr.commitTrailer",
@@ -63,6 +69,7 @@ const policyLeaks = [
     label: "hardcoded tracker CLI (gh) — read config.issueTracker instead",
     re: /\bgh\s+(?:issue|pr|api|label|release|repo)\b/,
     allowIfConfigRef: true,
+    refPattern: TRACKER_CONFIG_REF,
   },
   {
     label: "hardcoded merge strategy — lift to config.pr.squash",
@@ -95,9 +102,9 @@ for (const file of enforcedDirs.flatMap((d) => walk(d))) {
         leaks.push({ file: relative(packRoot, file), line: i + 1, label, text: line.trim() });
       }
     }
-    const hasConfigRef = CONFIG_REF.test(line);
-    for (const { label, re, allowIfConfigRef } of policyLeaks) {
-      if (re.test(line) && !(allowIfConfigRef && hasConfigRef)) {
+    for (const { label, re, allowIfConfigRef, refPattern } of policyLeaks) {
+      const exemptRef = refPattern || CONFIG_REF;
+      if (re.test(line) && !(allowIfConfigRef && exemptRef.test(line))) {
         leaks.push({ file: relative(packRoot, file), line: i + 1, label, text: line.trim() });
       }
     }

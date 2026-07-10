@@ -1,6 +1,6 @@
 # Implement Plan (Cross-Repo)
 
-> **Config inputs:** `config.repos`, `config.branchNaming`, `config.pr`, `config.parity`, `config.i18n`, `config.contract`, `config.issueTracker`, `config.worktree.root`, `config.worktree.branchPattern`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
+> **Config inputs:** `config.repos`, `config.branchNaming`, `config.pr.commitTrailer`, `config.pr.prBodyFooter`, `config.pr.baseBranch`, `config.pr.pairedPRs`, `config.pr.squash`, `config.parity`, `config.i18n`, `config.contract`, `config.issueTracker.repo`, `config.issueTracker.driver`, `config.worktree.root`, `config.worktree.branchPattern`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
 
 **Plan**: the plan path or issue number(s) the caller passed.
 
@@ -207,7 +207,7 @@ Capture each PR's URL.
 
 If the plan's **Tracked Issue** is "N/A", skip.
 
-Otherwise post a completion comment on the issue in `{{config.issueTracker.repo}}` (e.g. `gh issue comment {N} --repo {{config.issueTracker.repo}} --body-file <tmp-comment-path>`).
+Otherwise post a completion comment on the issue in `{{config.issueTracker.repo}}` through the resolved tracker driver `{{config.issueTracker.driver}}` (the tool setup picked for the tracker host — see `stories` for the per-host driver reference).
 
 Don't manually close — the `Closes #N` in the owning repo's PR closes it on merge.
 
