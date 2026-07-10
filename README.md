@@ -92,6 +92,28 @@ update — you know a process changed and bring it (it decodes only the delta, g
 `node scripts/sync.mjs` is the *deterministic* re-apply from the saved answers. Refresh
 the machine-wide CORE itself by re-running `node bootstrap.mjs`.
 
+### One PC, same conventions everywhere — the two-layer config
+
+The mechanical config layers just like the hook policy: a **global**
+`~/.claude/workflow.config.yaml` supplies machine/company defaults (tracker, branch grammar,
+merge strategy, tool defaults, the enforcement mirror), and each **project**
+`workflow.config.yaml` overrides it with only its `repos[]` + local deviations. Skills read
+the **effective** config — `node <_core>/setup/config.mjs resolve --dir <project>` — where
+**project wins**.
+
+```bash
+/setup-harness --global               # write the machine-wide DEFAULTS into ~/.claude
+node bootstrap.mjs --enforce-globally  # (opt-in) wire the git/content guardrails machine-wide
+# then, in each repo — only its repos[] + overrides:
+/setup-harness                         # writes the lean project slice
+```
+
+So you answer the machine-wide questions **once**. Facts and tool-defaults go machine-wide
+via `~/.claude/CLAUDE.md` + `~/.claude/rules/*` (Claude Code auto-loads both), and enforcement
+holds in every repo because `loadPolicy` merges `DEFAULT < ~/.claude/hooks.policy.json <
+project`. A standalone project with no global layer still works — it just carries the full
+config itself.
+
 **Proactive drift — `/update-harness` (monthly, web-grounded).** Once a month, run
 `/update-harness`. It audits the *installed* harness for staleness you don't know about —
 a model pin a newer release superseded, a deprecated API/flag/tool, a drifted reference, an
@@ -141,7 +163,7 @@ core/          ← tool-agnostic skill bodies + hook logic — the SINGLE source
   _shared/     ← verification-protocol + behavioral-baseline (read by many skills)
   pipeline/ review/ intake/ research/ ops/ meta/ agents/
   hooks/       ← the dual-target hook engine: logic/ + templates.mjs + lint-generators/
-  setup/       ← setup-harness runbook + detect/discover/interview + decode/gate/generate/adopt/manifest/verify
+  setup/       ← setup-harness runbook + detect/discover/interview + decode/gate/generate/config(two-layer)/adopt/manifest/verify
 adapters/      ← per-tool wrappers off the one core; no logic duplicated
   claude-code/ ← .claude/skills + .claude/agents (generated) · hooks/ + workflows/ (authored engine)
   opencode/    ← .opencode/skills + .opencode/agents (generated) · plugin/ (authored engine)
@@ -193,8 +215,8 @@ which fails the build on two classes of leak:
   The **hook engine** adapters (`hooks/`, `plugin/`, `workflows/`) are authored shells,
   preserved across regeneration — edit them directly.
 - CI runs every gate on push + PR: `check-genericity`, `test-hook-engine`, `test-setup`,
-  `test-generate`, `test-wiring`, `test-bootstrap`, `test-update-harness`, and the
-  adapters-in-sync check. All must stay green.
+  `test-generate`, `test-wiring`, `test-bootstrap`, `test-update-harness`,
+  `test-config-layers`, and the adapters-in-sync check. All must stay green.
 
 ## License
 

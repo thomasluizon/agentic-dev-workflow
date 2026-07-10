@@ -27,6 +27,8 @@ jobs:
         run: node scripts/test-bootstrap.mjs
       - name: update-harness proof (model-pin scan / overlay-behind-CORE / monthly clock / roster wiring)
         run: node scripts/test-update-harness.mjs
+      - name: config-layers proof (global/project two-layer resolve / lossless split / global gen / enforcement wiring)
+        run: node scripts/test-config-layers.mjs
       - name: skill/agent adapters are in sync with the manifest
         run: |
           node scripts/gen-adapters.mjs
