@@ -1,6 +1,6 @@
 # Prime: Load Project Context
 
-> **Config inputs:** `config.repos`, `config.conventionsDocs`, `config.issueTracker`, `config.worktree.root`, `config.worktree.branchPattern`, `config.branchNaming.pattern`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
+> **Config inputs:** `config.repos`, `config.conventionsDocs`, `config.issueTracker.host`, `config.issueTracker.repo`, `config.issueTracker.driver`, `config.worktree.root`, `config.worktree.branchPattern`, `config.branchNaming.pattern`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
 
 **Input**: the issue number(s) or context flags the caller passed.
 
@@ -28,7 +28,7 @@ Parse the input. Count numeric tokens (`123`, `#123`) — split on whitespace OR
 
 ### Step 1: Load the tracked issue (if provided)
 
-Fetch the issue from `{{config.issueTracker.repo}}` (e.g. with the tracker's CLI: `gh issue view {N} --repo {{config.issueTracker.repo}} --json number,title,body,labels,milestone,assignees,state`).
+Fetch issue `{N}` from `{{config.issueTracker.repo}}` through the resolved tracker driver `{{config.issueTracker.driver}}` (the tool setup picked for host `{{config.issueTracker.host}}` — see `stories` for the per-host driver reference). Pull the issue's number, title, body, labels, milestone, assignees, and state.
 
 Extract:
 - Title and body

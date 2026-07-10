@@ -1,6 +1,6 @@
 # Stories: Break a PRD or plan into issues (tracer-bullet vertical slices)
 
-> **Config inputs:** `config.repos`, `config.issueTracker.host`, `config.issueTracker.repo`, `config.issueTracker.labels`, `config.issueTracker.milestones`
+> **Config inputs:** `config.repos`, `config.issueTracker.host`, `config.issueTracker.repo`, `config.issueTracker.driver`, `config.issueTracker.labels`, `config.issueTracker.milestones`
 
 Break a PRD, spec, or plan into independently grabbable issues, each a **thin vertical slice** (a tracer bullet) that cuts end-to-end through every relevant layer. Mirror them to a local stories file, then — after an explicit approval gate — create issues in the tracker.
 
@@ -21,20 +21,23 @@ All issues live in `{{config.issueTracker.repo}}` on tracker host `{{config.issu
 
 Apply the labels defined in `{{config.issueTracker.labels}}` (leave issues unlabelled if that list is empty). Use them to encode, at minimum, **which repo role(s)** an issue touches (matched against the `role` values in `{{config.repos}}`) and its **type** (feature / enhancement / bug / tech / spike). If the project mirrors surfaces, a label also flags any slice that must update every mirrored surface together.
 
-### Tracker host
+### Tracker driver
 
-Describe issue creation tool-neutrally and adapt to `{{config.issueTracker.host}}`:
+Create and read issues through the resolved driver `{{config.issueTracker.driver}}` — the best tool setup picked for `{{config.issueTracker.host}}` by availability (a CLI, an MCP, or a REST fallback), never a hardcoded assumption. The per-host driver reference below shows what that driver looks like on each host; drive the operation with whatever `{{config.issueTracker.driver}}` names, mapping the same title/body/label/milestone fields:
 
-- **github** — `gh issue create --repo {{config.issueTracker.repo}} --title … --body-file … --label … --milestone …`; labels via `gh label`, milestones via `gh api …/milestones`.
-- **gitlab** — `glab issue create` (labels `--label`, milestone `--milestone`).
-- **linear** — the Linear CLI/API: create issues in the configured team, map labels to Linear labels, milestones to a project/cycle.
+- **github** — the `gh` CLI when present (`gh issue create --repo {{config.issueTracker.repo}} --title … --body-file … --label … --milestone …`; labels via `gh label`, milestones via `gh api …/milestones`), else a GitHub MCP, else the GitHub REST API.
+- **gitlab** — the `glab` CLI (`glab issue create`, labels `--label`, milestone `--milestone`), else a GitLab MCP, else the GitLab REST API.
+- **azure** — the `az` CLI (`az boards work-item create`), else an Azure DevOps MCP, else the Azure DevOps REST API.
+- **jira** — an Atlassian/Jira MCP, else the `jira` CLI (`jira issue create`), else the Jira REST API; map labels to Jira labels and milestones to a fix version / sprint.
+- **linear** — a Linear MCP (Linear has no first-party CLI): create issues in the configured team, map labels to Linear labels, milestones to a project/cycle; else the Linear GraphQL API.
+- **bitbucket** — a Bitbucket MCP, else the Bitbucket REST API.
 - **none** — skip all creation; the local stories file IS the deliverable regardless of `--no-create`.
 
 ---
 
 ## Phase 1 — Load
 
-Read the source from the argument. If none was passed, look in order for a PRD under the working PRDs directory (`{{config.paths.prdsDir}}/*`), then a `PRD.md` at repo root, then a tracker issue/URL the user names (fetch it with the host's CLI, e.g. `gh issue view <n> --comments`); otherwise work from the conversation, and if nothing exists, ask which source to use.
+Read the source from the argument. If none was passed, look in order for a PRD under the working PRDs directory (`{{config.paths.prdsDir}}/*`), then a `PRD.md` at repo root, then a tracker issue/URL the user names (fetch it through the resolved driver `{{config.issueTracker.driver}}`); otherwise work from the conversation, and if nothing exists, ask which source to use.
 
 Extract: user stories, implementation phases, the Repo Touch Matrix, and API-contract / data-model sections. Parse `--milestone` and `--no-create`.
 
@@ -128,7 +131,7 @@ Present the breakdown as a numbered list. For each slice show: title, type (AFK/
 
 ## Phase 7 — Create issues
 
-After approval, create issues **in dependency order (blockers first)** so real issue numbers can be referenced in blocked-by fields, using the host mapping above.
+After approval, create issues **in dependency order (blockers first)** so real issue numbers can be referenced in blocked-by fields, through the resolved driver `{{config.issueTracker.driver}}` (the per-host driver reference above shows its shape).
 
 1. **Ensure labels exist.** For any label in `{{config.issueTracker.labels}}` missing from the tracker, create it first.
 2. **Ensure the milestone exists** (if `--milestone` was passed and the host supports milestones); create it if missing.

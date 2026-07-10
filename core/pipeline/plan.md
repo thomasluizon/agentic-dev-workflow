@@ -1,6 +1,6 @@
 # Implementation Plan Generator
 
-> **Config inputs:** `config.repos`, `config.conventionsDocs`, `config.issueTracker`, `config.worktree.root`, `config.worktree.branchPattern`, `config.parity`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
+> **Config inputs:** `config.repos`, `config.conventionsDocs`, `config.issueTracker.host`, `config.issueTracker.repo`, `config.issueTracker.driver`, `config.worktree.root`, `config.worktree.branchPattern`, `config.parity`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
 
 **Input**: the issue number(s), feature description, or PRD path the caller passed, plus optional `--research` / `--no-research`.
 
@@ -38,7 +38,7 @@ First strip any `--research` / `--no-research` flag from the input (it controls 
 
 ### Fetch Issue Context (if numeric)
 
-Fetch the issue from `{{config.issueTracker.repo}}` (host `{{config.issueTracker.host}}`, e.g. `gh issue view {N} --repo {{config.issueTracker.repo}} --json number,title,body,labels,milestone`).
+Fetch the issue from `{{config.issueTracker.repo}}` (host `{{config.issueTracker.host}}`) through the resolved tracker driver `{{config.issueTracker.driver}}` — its number, title, body, labels, and milestone (see `stories` for the per-host driver reference).
 
 Extract:
 - Title and body

@@ -124,6 +124,7 @@ T("generate: config round-trips through the YAML emitter", fromYaml(toYaml(confi
 T("generate: merge strategy -> pr.squash", config.pr.squash, true);
 T("generate: banned trailer mirrored into config", config.pr.forbiddenTrailers, ["Co-authored-by"]);
 T("generate: tracker host carried to config", config.issueTracker.host, "jira");
+T("generate: resolved tracker tool surfaced as issueTracker.driver", config.issueTracker.driver, "Jira MCP");
 Truthy("generate: CLAUDE.md carries the project + repo facts", /Acme/.test(buildClaudeMd(answers, approved)) && /acme-web/.test(buildClaudeMd(answers, approved)));
 Truthy("generate: tool-defaults rule file written", buildRules(approved).some((a) => a.path.endsWith("tool-defaults.md") && /AWS CLI/.test(a.content)));
 

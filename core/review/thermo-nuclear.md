@@ -1,6 +1,6 @@
 # Thermo-Nuclear Code-Quality Review
 
-> **Config inputs:** `config.repos`, `config.pr.baseBranch`, `config.parity.enabled`, `config.parity.mirrors`, `config.contract.enabled`, `config.branchNaming.types`, `config.worktree.root`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
+> **Config inputs:** `config.repos`, `config.pr`, `config.parity.enabled`, `config.parity.mirrors`, `config.contract.enabled`, `config.branchNaming.pattern`, `config.branchNaming.types`, `config.worktree.root`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
 
 **Input**: blank (all repos in `{{config.repos}}`) or a repo/path narrowing it.
 
@@ -133,9 +133,9 @@ to the Deferred ledger — a refactor is not worth a behavior risk.
 
 ## Phase 3 — Deliver (one PR per repo)
 
-A fresh branch off latest `{{config.pr.baseBranch}}` per touched repo (a `chore/`- or `refactor/`-
-prefixed branch per `{{config.branchNaming.types}}` — never reuse a squash-merged branch). One PR
-per repo, cross-linked, with:
+A fresh branch off latest `{{config.pr.baseBranch}}` per touched repo (named per
+`{{config.branchNaming.pattern}}`, `{type}` drawn from `{{config.branchNaming.types}}` — never reuse
+an already-merged branch). One PR per repo, cross-linked, with:
 
 ```markdown
 ## Thermo-Nuclear Structural Review — {repo}
@@ -160,7 +160,7 @@ per repo, cross-linked, with:
 - new-code-coverage gate: expected relocation artifact → override (see note)
 ```
 
-**Do not merge** — hand the PRs to the user. Branch protection + squash-merge are theirs to click.
+**Do not merge** — hand the PRs to the user. Branch protection + the merge (per `{{config.pr}}`) are theirs to click.
 
 ---
 

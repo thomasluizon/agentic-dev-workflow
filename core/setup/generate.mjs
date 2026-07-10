@@ -22,6 +22,7 @@ import path from "node:path";
 import { DEFAULT_POLICY, deepMerge } from "../hooks/logic/config.mjs";
 import { toYaml } from "./answers.mjs";
 import { strongestLayerFor } from "../hooks/lint-generators/index.mjs";
+import { TRACKER_DRIVERS } from "./trackers.mjs";
 
 const ans = (answers, key) => answers?.answered?.[key];
 const enforceRows = (approved) => (approved.rows || []).filter((r) => r.action === "enforce");
@@ -29,6 +30,21 @@ const rowsOfTier = (approved, tier) => (approved.rows || []).filter((r) => r.tie
 
 function slug(text) {
   return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48) || "rule";
+}
+
+// A human-readable descriptor of the tool setup resolved for the tracker (the
+// `host + chosen tool` binding recorded on `answers.tracker`). The generic
+// pipeline skills read it as `config.issueTracker.driver` and drive issue ops
+// through it instead of assuming any one CLI. Falls back to the host's default
+// label from the generic driver table when no tool was recorded (express mode).
+function trackerDriver(answers, host) {
+  const label = (TRACKER_DRIVERS[host] || TRACKER_DRIVERS.none).label;
+  const tool = answers?.tracker?.tool;
+  if (tool?.note) return tool.note;
+  if (tool?.cli) return `${tool.cli} CLI`;
+  if (tool?.kind === "mcp") return `${label} MCP`;
+  if (tool?.kind === "web") return `${label} REST API via WebFetch`;
+  return label;
 }
 
 // ---- hooks.policy.json -------------------------------------------------------
@@ -143,6 +159,7 @@ export function buildConfig(answers, approved, policy) {
     issueTracker: {
       host: tracker.host || "none",
       repo: tracker.repo || "",
+      driver: trackerDriver(answers, tracker.host || "none"),
       labels: tracker.labels || [],
       milestones: tracker.milestones || [],
       ticketPattern: policy.git.ticketPattern || "",
