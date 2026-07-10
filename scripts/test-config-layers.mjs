@@ -136,6 +136,19 @@ T("policy: project layer overrides the default branchPattern", merged.git.branch
 T("policy: default protected branches survive the merge", merged.git.protectedBranches, ["main", "master"]);
 T("policy: deepMerge is the same primitive both layers use", deepMerge(DEFAULT_POLICY, { git: { branchPattern: "x" } }).git.branchPattern, "x");
 
+// loadPolicy resolves the GLOBAL policy via CLAUDE_CONFIG_DIR (same override
+// bootstrap/config.mjs use), so a relocated Claude config still enforces.
+const polGlobalDir = join(root, "pol-global");
+mkdirSync(polGlobalDir, { recursive: true });
+writeFileSync(join(polGlobalDir, "hooks.policy.json"), JSON.stringify({ content: { emDash: { enabled: true } } }));
+const prevPolEnv = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = polGlobalDir;
+const globalMerged = loadPolicy(polDir);
+T("policy: the global layer (via CLAUDE_CONFIG_DIR) merges in", globalMerged.content.emDash.enabled, true);
+T("policy: project still overrides atop the CLAUDE_CONFIG_DIR global", globalMerged.git.branchPattern, "^TB-\\d+");
+if (prevPolEnv === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+else process.env.CLAUDE_CONFIG_DIR = prevPolEnv;
+
 // ---------------------------------------------------------------------------
 // 6. global enforcement wiring — opt-in, matcher-aware, idempotent
 // ---------------------------------------------------------------------------
