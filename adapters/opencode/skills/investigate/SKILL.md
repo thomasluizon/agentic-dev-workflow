@@ -1,11 +1,14 @@
-# llm-council
+---
+description: Root-cause a production incident end to end against the configured error tracker, deploy platform, prod data, and code — read-only until a human gate.
+---
+# investigate
 
-Vet a decision through N independent perspectives, peer-review them, then synthesize one recommendation.
+Root-cause a production incident end to end against the configured error tracker, deploy platform, prod data, and code — read-only until a human gate.
 
 **This is a thin adapter.** The full, tool-agnostic instructions live in the pack core.
 Read and follow the core skill body, then execute its steps against this project:
 
-> **Core body:** `_core/research/llm-council.md`
+> **Core body:** `../_core/ops/investigate.md`
 
 Resolve every `{{config.*}}` reference in the core body against this project's
 `workflow.config.yaml` (at the project root). If a referenced optional config value is

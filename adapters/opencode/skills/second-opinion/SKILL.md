@@ -1,11 +1,14 @@
-# pr-review
+---
+description: Independent cross-model second opinion (via opencode) on one load-bearing claim or Critical finding; degrades to UNAVAILABLE when opencode is absent.
+---
+# second-opinion
 
-Deep multi-dimension review of a diff against the project rubric; parity/i18n/contract are config-gated.
+Independent cross-model second opinion (via opencode) on one load-bearing claim or Critical finding; degrades to UNAVAILABLE when opencode is absent.
 
 **This is a thin adapter.** The full, tool-agnostic instructions live in the pack core.
 Read and follow the core skill body, then execute its steps against this project:
 
-> **Core body:** `_core/review/pr-review.md`
+> **Core body:** `../_core/review/second-opinion.md`
 
 Resolve every `{{config.*}}` reference in the core body against this project's
 `workflow.config.yaml` (at the project root). If a referenced optional config value is

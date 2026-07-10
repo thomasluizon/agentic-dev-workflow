@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-// Regenerates the three tool adapters from a single manifest. Each adapter file
+// Regenerates the two tool adapters from a single manifest. Each adapter file
 // is a THIN wrapper: the host tool's required header plus a pointer to the
 // matching core/ body — no logic is ever duplicated across tools. Run this after
 // changing the skill roster; the generated files are committed.
+//
+// Driver = Claude Code; opencode is a thin compat layer. Codex is a locked-out
+// decision — do not re-add a codex path here.
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -32,6 +35,10 @@ const skills = [
   ["stories", "intake/stories.md", "Break a PRD or plan into independently grabbable issues using tracer-bullet vertical slices.", "[source]"],
   ["deep-research", "research/deep-research.md", "Answer an open-ended best-way question with orchestrated, adversarially-verified multi-agent web research.", "[question]"],
   ["llm-council", "research/llm-council.md", "Vet a decision through N independent perspectives, peer-review them, then synthesize one recommendation.", "[topic]"],
+  ["second-opinion", "review/second-opinion.md", "Independent cross-model second opinion (via opencode) on one load-bearing claim or Critical finding; degrades to UNAVAILABLE when opencode is absent.", "[claim [file:line]]"],
+  ["investigate", "ops/investigate.md", "Root-cause a production incident end to end against the configured error tracker, deploy platform, prod data, and code — read-only until a human gate.", "[issue-id | url | description]"],
+  ["handoff", "meta/handoff.md", "Compact the current session into a resumable handoff document a fresh agent can pick up from.", "[note]"],
+  ["lesson", "meta/lesson.md", "Capture a correction as a gated, graduating lesson — staged for approval, then promoted to a hook/lint rule or a scoped note.", "[the lesson]"],
 ];
 
 const agent = ["security-reviewer", "agents/security-reviewer.md", "Generic security-review agent: authz, webhook signatures, sessions, CORS, input size, rate limits, secret logging."];
@@ -88,17 +95,6 @@ function genOpenCode() {
   write(join(base, "agents", `${aName}.md`), aFm + pointerBody(aName, `../skills/_core/${aCore}`, aDesc));
 }
 
-// ---- Codex: .codex/prompts/<skill>.md (plain prompts, no frontmatter) + agent prompt
-function genCodex() {
-  const base = join(packRoot, "adapters/codex");
-  rmSync(base, { recursive: true, force: true });
-  for (const [name, corePath, description] of skills) {
-    write(join(base, "prompts", `${name}.md`), pointerBody(name, `_core/${corePath}`, description));
-  }
-  const [aName, aCore, aDesc] = agent;
-  write(join(base, "prompts", `${aName}.md`), pointerBody(aName, `_core/${aCore}`, aDesc));
-}
-
 function write(path, content) {
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content);
@@ -106,7 +102,6 @@ function write(path, content) {
 
 genClaudeCode();
 genOpenCode();
-genCodex();
 
-const total = (skills.length + 1) * 3;
-console.log(`Generated ${total} adapter files (${skills.length} skills + 1 agent) x 3 tools.`);
+const total = (skills.length + 1) * 2;
+console.log(`Generated ${total} adapter files (${skills.length} skills + 1 agent) x 2 tools.`);

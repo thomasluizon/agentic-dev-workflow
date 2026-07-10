@@ -1,11 +1,16 @@
-# grill
+---
+name: second-opinion
+description: Independent cross-model second opinion (via opencode) on one load-bearing claim or Critical finding; degrades to UNAVAILABLE when opencode is absent.
+argument-hint: [claim [file:line]]
+---
+# second-opinion
 
-Interview the user relentlessly about a plan or design until reaching shared understanding.
+Independent cross-model second opinion (via opencode) on one load-bearing claim or Critical finding; degrades to UNAVAILABLE when opencode is absent.
 
 **This is a thin adapter.** The full, tool-agnostic instructions live in the pack core.
 Read and follow the core skill body, then execute its steps against this project:
 
-> **Core body:** `_core/pipeline/grill.md`
+> **Core body:** `../_core/review/second-opinion.md`
 
 Resolve every `{{config.*}}` reference in the core body against this project's
 `workflow.config.yaml` (at the project root). If a referenced optional config value is

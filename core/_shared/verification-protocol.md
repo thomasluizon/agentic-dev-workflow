@@ -96,6 +96,32 @@ clean area earns a plain "None," not an invented nit. These bind every mechanism
 — and a skill that manufactures findings to look thorough has failed this protocol,
 not passed it.
 
+## 6. Execution — orchestration & model routing
+
+The mechanisms above (fan-out by surface, adversarial verify, loop-until-dry) are a
+pipeline: *find → refute → critic-loop*. **How** it runs adapts to the host, in three
+descending tiers — the pipeline's shape is identical, only the substrate changes:
+
+- **Workflow accelerator (fastest, host-dependent).** When the host offers a deterministic
+  agent-scripting / workflow runtime, run the fan-out, the per-finding skeptic, and the
+  completeness loop as a **script** — the orchestration becomes free deterministic control
+  flow and the driver model spends tokens only on the final synthesis. This is the biggest
+  cost win where it is available.
+- **Subagent orchestration (portable default).** No workflow runtime, but parallel subagents
+  and a named-agent registry exist — spawn the finders and skeptics as subagents, respecting
+  `{{config.execution.maxParallelSubagents}}`.
+- **Sequential fallback.** When `{{config.execution.hasNamedAgentRegistry}}` is false or
+  `{{config.execution.maxParallelSubagents}}` ≤ 1, run the same finder / skeptic / critic
+  passes **serially in one thread**. The challenge and the loop are what matter, not the
+  concurrency — the findings are identical, only slower.
+
+**Model routing (all three tiers).** The finder and skeptic passes are high-volume, low-stakes
+leaf work; the synthesis is low-volume, high-stakes. When the host supports per-subagent model
+selection, route the finders and skeptics to `{{config.execution.cheapSubagentModel}}` (a
+cheaper / faster model) and reserve the strongest model for the synthesis and the final verdict
+— cheap discovery, expensive judgment only where it pays. When the config value is empty or the
+host has one model, every step uses that model; the pipeline is unchanged.
+
 ---
 
 ## Calibration — which mechanisms each skill runs

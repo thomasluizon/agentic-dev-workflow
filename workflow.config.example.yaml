@@ -184,6 +184,31 @@ research:
   constraints: []                            # free-form constraint bullets
 
 # ---------------------------------------------------------------------------
+# secondOpinion — OPTIONAL cross-model diversity. When enabled, `pr-review`
+# Phase 6 asks a DIFFERENT model (run through the local `opencode` CLI) to judge
+# each Critical finding that survives the adversarial skeptic. Interactive-only:
+# absent/unfunded/offline opencode degrades to UNAVAILABLE and the review is
+# unchanged. `enabled: false` or an empty `model` → the step is skipped entirely.
+# ---------------------------------------------------------------------------
+secondOpinion:
+  enabled: false
+  # An opencode model slug for a model from a DIFFERENT family than the driver
+  # (a second architecture disagreeing is the signal). e.g. opencode-go/glm-5.2
+  model: ""
+
+# ---------------------------------------------------------------------------
+# investigate — OPTIONAL production-incident tooling the `investigate` runbook
+# drives. Each binding is a free-form note naming the tool (an MCP server or a
+# CLI) the skill should reach for; empty → that phase uses its generic fallback.
+# `setup-harness` machine-specializes this per project.
+# ---------------------------------------------------------------------------
+investigate:
+  errorTracker: ""      # e.g. "Sentry MCP (org <slug>)" — pull the issue + events
+  deployPlatform: ""    # e.g. "Render MCP" — deploys + runtime logs; select workspace first
+  prodDataQuery: ""     # e.g. "read-only Postgres query MCP" — SELECT only, never mutate
+  codeNav: ""           # e.g. "C# LSP MCP" — symbol/caller nav; else grep fallback
+
+# ---------------------------------------------------------------------------
 # issueTracker — where `stories`/`feature` create issues and `prime` reads them.
 # ---------------------------------------------------------------------------
 issueTracker:
@@ -203,3 +228,8 @@ execution:
   maxParallelSubagents: 3                     # 0 or 1 → force sequential fallback
   hasNamedAgentRegistry: true                 # false → orchestrators inline their sub-steps
   hasHooks: false                             # the pack never requires hooks
+  # Optional. A cheaper/faster model slug the review + audit skills route their
+  # high-volume finder/skeptic subagents to, reserving the strongest model for
+  # synthesis. Empty → every step uses the session's default model. Only takes
+  # effect when the host supports per-subagent model selection.
+  cheapSubagentModel: ""

@@ -1,11 +1,16 @@
-# prod-readiness
+---
+name: investigate
+description: Root-cause a production incident end to end against the configured error tracker, deploy platform, prod data, and code — read-only until a human gate.
+argument-hint: [issue-id | url | description]
+---
+# investigate
 
-Orchestrate the four audits plus ops checks into one GO / CONDITIONAL / NO-GO verdict.
+Root-cause a production incident end to end against the configured error tracker, deploy platform, prod data, and code — read-only until a human gate.
 
 **This is a thin adapter.** The full, tool-agnostic instructions live in the pack core.
 Read and follow the core skill body, then execute its steps against this project:
 
-> **Core body:** `_core/review/prod-readiness.md`
+> **Core body:** `../_core/ops/investigate.md`
 
 Resolve every `{{config.*}}` reference in the core body against this project's
 `workflow.config.yaml` (at the project root). If a referenced optional config value is
