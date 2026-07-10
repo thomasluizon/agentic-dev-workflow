@@ -310,6 +310,18 @@ export function buildSkillArtifacts(approved) {
 
 // ---- plan + write ------------------------------------------------------------
 
+// Remap an in-repo artifact path to its store-entry equivalent for REPO-CLEAN
+// mode, where nothing may be written into the repo. CLAUDE.md becomes facts.md
+// (the injector reads it), and the .claude/.harness prefixes are dropped so
+// everything lands flat under ~/.claude/harness/projects/<slug>/.
+function storePath(inRepoPath) {
+  if (inRepoPath === "CLAUDE.md") return "facts.md";
+  if (inRepoPath.startsWith(".claude/rules/")) return "rules/" + inRepoPath.slice(".claude/rules/".length);
+  if (inRepoPath.startsWith(".claude/skills/")) return "skills/" + inRepoPath.slice(".claude/skills/".length);
+  if (inRepoPath.startsWith(".harness/lint/")) return "lint/" + inRepoPath.slice(".harness/lint/".length);
+  return inRepoPath;
+}
+
 // Assemble every artifact into one write plan. `handEditable` marks the files a
 // user is expected to refine (the manifest preserves those on re-run); the
 // generated policy + config are AI-managed and overwritten.
@@ -321,7 +333,21 @@ export function buildSkillArtifacts(approved) {
 //               coordinates); the machine-wide defaults live in the global layer
 //               (see planGlobalArtifacts) and are merged in at runtime by
 //               config.mjs `resolveConfig`. Used on a uniform PC.
-export function planArtifacts(answers, approved, { stack = { linters: [] }, configScope = "full" } = {}) {
+//
+// `layout` selects WHERE the artifacts land:
+//   "in-repo" — the normal path (CLAUDE.md, .claude/rules/*, .claude/skills/* at
+//               the project root). The default.
+//   "store"   — REPO-CLEAN mode: every path is remapped to its store-entry
+//               equivalent (facts.md, rules/*, skills/*, lint/*) so writeArtifacts
+//               writes them under ~/.claude/harness/projects/<slug>/ and NOTHING
+//               touches the repo. In store mode a lint row cannot be wired into the
+//               pristine repo, so each lint artifact is recorded in the store AND
+//               reported as a gap (the content-scan hook on the store policy is the
+//               fallback); a bespoke skill is written to the store for record +
+//               injector surfacing, but is not auto-discovered as a slash command.
+export function planArtifacts(answers, approved, { stack = { linters: [] }, configScope = "full", layout = "in-repo" } = {}) {
+  const store = layout === "store";
+  const at = (p) => (store ? storePath(p) : p);
   const policy = buildHooksPolicy(approved);
   const config = buildConfig(answers, approved, policy);
   const configContent = configScope === "project" ? splitConfig(config).project : config;
@@ -329,12 +355,15 @@ export function planArtifacts(answers, approved, { stack = { linters: [] }, conf
   const plan = [
     { path: "hooks.policy.json", content: JSON.stringify(policy, null, 2) + "\n", kind: "policy", tier: "HOOK", handEditable: false, sourceRowIds: enforceRows(approved).map((r) => r.id) },
     { path: "workflow.config.yaml", content: toYaml(configContent), kind: "config", tier: "CONFIG", handEditable: false, sourceRowIds: [] },
-    { path: "CLAUDE.md", content: buildClaudeMd(answers, approved), kind: "claude-md", tier: "FACT", handEditable: true, sourceRowIds: rowsOfTier(approved, "FACT").map((r) => r.id) },
-    ...buildRules(approved).map((a) => ({ ...a, kind: "rule", tier: "RULE", handEditable: true })),
-    ...lint.artifacts.map((a) => ({ ...a, kind: "lint", tier: "LINT", handEditable: true })),
-    ...buildSkillArtifacts(approved).map((a) => ({ ...a, kind: "skill", tier: "SKILL", handEditable: true })),
+    { path: at("CLAUDE.md"), content: buildClaudeMd(answers, approved), kind: "claude-md", tier: "FACT", handEditable: true, sourceRowIds: rowsOfTier(approved, "FACT").map((r) => r.id) },
+    ...buildRules(approved).map((a) => ({ ...a, path: at(a.path), kind: "rule", tier: "RULE", handEditable: true })),
+    ...lint.artifacts.map((a) => ({ ...a, path: at(a.path), kind: "lint", tier: "LINT", handEditable: true })),
+    ...buildSkillArtifacts(approved).map((a) => ({ ...a, path: at(a.path), kind: "skill", tier: "SKILL", handEditable: true })),
   ];
-  return { plan, policy, config, gaps: lint.gaps };
+  const gaps = store
+    ? [...lint.gaps, ...lint.artifacts.map((a) => ({ id: a.sourceRowIds?.[0], rule: a.path, detail: "repo-clean: linter rule recorded in the store but not wireable into the pristine repo — enforced via the content-scan hook on the store policy" }))]
+    : lint.gaps;
+  return { plan, policy, config, gaps };
 }
 
 // The GLOBAL (machine/company) layer for a uniform PC: the machine-wide config

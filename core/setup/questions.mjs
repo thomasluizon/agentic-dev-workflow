@@ -25,6 +25,17 @@ const anyOf = (...ps) => (ctx) => ps.some((p) => p(ctx));
 
 export const CORE_QUESTIONS = [
   {
+    id: "installMode",
+    section: "Install mode",
+    express: true,
+    answersKey: "installMode",
+    detectionHint: "detect.repoClean — a locked/scanned checkout or a policy forbidding committed AI files recommends repo-clean; else in-repo committed",
+    prompt: "Where should this project's harness files live: committed IN the repo (default), gitignored but IN the repo, or REPO-CLEAN (nothing in the working dir at all — everything under ~/.claude, keyed to this repo)? Pick repo-clean when a company machine forbids adding or committing any AI/Claude files in a checkout. I pre-fill a recommendation from detection; you confirm.",
+    followups: [
+      { id: "installMode.repoClean", when: answered("installMode", "repo-clean"), prompt: "Repo-clean confirmed: every artifact goes to the out-of-repo store (default ~/.claude/harness, honoring CLAUDE_CONFIG_DIR), the global install + fact injector + enforcement are wired machine-wide, and I write ZERO files here. Is the default store location correct?" },
+    ],
+  },
+  {
     id: "scale",
     section: "Scale",
     express: false,

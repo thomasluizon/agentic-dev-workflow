@@ -12,8 +12,9 @@
 //      survives moving or deleting the cloned pack; a symlink would not.
 //   3. Installs the behavioral baseline as a global auto-loading rule (the
 //      disposition every session starts from, before any company overlay).
-//   4. Wires the machine-wide proactivity guard into ~/.claude/settings.json
-//      (idempotent, backed up; skip with --no-hooks).
+//   4. Wires the machine-wide proactivity guard + the repo-clean fact injector
+//      into ~/.claude/settings.json (idempotent, backed up; skip with --no-hooks).
+//      The fact injector no-ops until a project is set up in repo-clean mode.
 //   5. Records ~/.claude/harness.bootstrap.json — a versioned manifest of exactly
 //      what it installed, so a later run updates in place (and prunes what the
 //      pack dropped) instead of piling up stale files.
@@ -154,6 +155,44 @@ export function wireProactivityHooks(claudeDir, { backupStamp = "" } = {}) {
   return { added, alreadyPresent, wired: added.length > 0 || alreadyPresent.length === wanted.length };
 }
 
+// ---- repo-clean fact injector -> ~/.claude/settings.json ---------------------
+
+// Wire the repo-clean FACT/RULE injector (project-facts.mjs) on UserPromptSubmit,
+// machine-wide. It is a no-op for any repo without a store entry, so wiring it
+// unconditionally is safe: on a machine that never uses repo-clean mode it simply
+// never fires, and on the first repo-clean project it is already in place. This is
+// what delivers a repo-clean project's facts + rules — the one tier that has no
+// native out-of-repo mechanism. Idempotent (matches by filename), backed up.
+export function wireFactsInjector(claudeDir, { backupStamp = "" } = {}) {
+  const settingsPath = join(claudeDir, "settings.json");
+  let settings = {};
+  let existed = false;
+  if (existsSync(settingsPath)) {
+    existed = true;
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, "utf8")) || {};
+    } catch {
+      settings = {};
+    }
+  }
+  const file = "project-facts.mjs";
+  const command = `node "${join(claudeDir, "hooks", file)}"`;
+  settings.hooks = settings.hooks && typeof settings.hooks === "object" ? settings.hooks : {};
+  const list = Array.isArray(settings.hooks.UserPromptSubmit) ? settings.hooks.UserPromptSubmit : [];
+  const present = list.some((entry) => (entry.hooks || []).some((h) => typeof h.command === "string" && h.command.includes(file)));
+  const added = [];
+  if (!present) {
+    list.push({ hooks: [{ type: "command", command, timeout: 10 }] });
+    added.push(file);
+  }
+  settings.hooks.UserPromptSubmit = list;
+  if (added.length) {
+    if (existed) writeFileSync(join(claudeDir, `settings.json.harness-bak${backupStamp ? `-${backupStamp}` : ""}`), readFileSync(settingsPath));
+    writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  }
+  return { added, alreadyPresent: present ? [file] : [], wired: added.length > 0 || present };
+}
+
 // ---- global enforcement hooks -> ~/.claude/settings.json ---------------------
 
 // Wire the git + content GUARDRAILS machine-wide, so a uniform PC enforces the
@@ -248,6 +287,11 @@ export function bootstrap({ claudeDir, packRoot = packRootDefault, wireHooks = t
   const backupStamp = generatedAt.replace(/[:.]/g, "-");
   const hooks = wireHooks ? wireProactivityHooks(root, { backupStamp }) : { added: [], alreadyPresent: [], wired: false };
 
+  // The repo-clean fact injector is wired alongside the proactivity guard — it is
+  // machine-wide and no-ops without a store entry, so it costs nothing on a
+  // machine that never uses repo-clean mode and is ready the moment one does.
+  const factsInjector = wireHooks ? wireFactsInjector(root, { backupStamp }) : { added: [], alreadyPresent: [], wired: false };
+
   // Machine-wide enforcement is opt-in: wire the git/content guardrails globally
   // when asked, or automatically once a global policy exists (setup --global
   // wrote ~/.claude/hooks.policy.json — an explicit machine-wide-policy choice).
@@ -280,6 +324,7 @@ export function bootstrap({ claudeDir, packRoot = packRootDefault, wireHooks = t
     updateClock,
     pruned,
     hooks,
+    factsInjector,
     enforcement,
   };
 }
@@ -308,6 +353,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     console.log(`  /setup-harness ${report.hasSetupHarness ? "installed" : "MISSING"} · /update-harness ${report.hasUpdateHarness ? "installed" : "MISSING"}`);
     if (report.hooks.added.length) console.log(`  wired proactivity hooks: ${report.hooks.added.join(", ")}`);
     else if (args.wireHooks) console.log(`  proactivity hooks already wired`);
+    if (report.factsInjector.added.length) console.log(`  wired repo-clean fact injector: ${report.factsInjector.added.join(", ")}`);
     if (report.enforcement.added.length) console.log(`  wired GLOBAL enforcement hooks: ${report.enforcement.added.join(", ")} (every project inherits ~/.claude/hooks.policy.json)`);
     if (report.pruned.length) console.log(`  pruned ${report.pruned.length} stale item(s) from a previous install`);
     const clock = dueReport(report.claudeDir, now);

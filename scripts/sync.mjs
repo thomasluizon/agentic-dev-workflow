@@ -11,7 +11,9 @@
 //               the approved decomposition (harness.decomposition.md) and
 //               PRESERVING every hand-edit the manifest detects. AI-managed files
 //               (the policy + config) refresh freely; a hand-edited file is never
-//               clobbered without --force.
+//               clobbered without --force. For a REPO-CLEAN project the answers
+//               record lives in the out-of-repo store (keyed by git root), so the
+//               re-apply runs against the store entry with the store layout.
 //
 // This is the lifecycle counterpart to bootstrap (global install) and install
 // (project vendor): sync keeps an already-installed project current.
@@ -26,12 +28,15 @@ import { parseGateTable, applyEdits, GATE_FILENAME } from "../core/setup/gate.mj
 import { planArtifacts } from "../core/setup/generate.mjs";
 import { readManifest, detectHandEdits, hashContent, MANIFEST_FILENAME } from "../core/setup/manifest.mjs";
 import { detectStack } from "../core/hooks/lint-generators/detect.mjs";
+import { resolveRepoRoot, storeEntryDir } from "../core/hooks/logic/store.mjs";
 
 // Re-decode the saved interview and re-apply the overlay, preserving hand-edits.
 // Returns { written, preserved, orphaned, gaps } — never clobbers a hand-edited
 // hand-editable file unless `force` is set. `generatedAt` is passed in so the
-// module stays deterministic (the CLI stamps the real time).
-export function reapplyOverlay(root, { force = false, generatedAt = "" } = {}) {
+// module stays deterministic (the CLI stamps the real time). `layout` is "store"
+// for a repo-clean project (root is its store entry dir) so re-generation remaps
+// the paths the same way the original setup did.
+export function reapplyOverlay(root, { force = false, generatedAt = "", layout = "in-repo" } = {}) {
   const answersFile = join(root, ANSWERS_FILENAME);
   if (!existsSync(answersFile)) return { skipped: "no harness.answers.yaml", written: [], preserved: [], orphaned: [], gaps: [] };
 
@@ -44,7 +49,7 @@ export function reapplyOverlay(root, { force = false, generatedAt = "" } = {}) {
   const edits = existsSync(gatePath) ? parseGateTable(readFileSync(gatePath, "utf8")) : {};
   const approved = applyEdits(decoded, edits);
 
-  const { plan, gaps } = planArtifacts(answers, approved, { stack });
+  const { plan, gaps } = planArtifacts(answers, approved, { stack, layout });
 
   const previous = readManifest(root);
   const buckets = previous ? detectHandEdits(root, previous) : { handEdited: [], unchanged: [], missing: [] };
@@ -132,7 +137,16 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (core.skipped) console.log(`CORE: ${core.skipped}`);
   else console.log(`CORE: re-vendored ${core.tool} — ${core.changed ? "updated" : "already up to date"}`);
 
-  const overlay = reapplyOverlay(args.into, { force: args.force, generatedAt: new Date().toISOString() });
+  // A repo-clean project has no in-repo harness.answers.yaml; its overlay lives in
+  // the out-of-repo store, keyed by git root. Point the re-apply at the store entry
+  // and remap paths (layout "store") when that is where the answers record lives.
+  const repoRoot = resolveRepoRoot(args.into) || args.into;
+  const entryDir = storeEntryDir(repoRoot);
+  const repoClean = !existsSync(join(args.into, ANSWERS_FILENAME)) && entryDir && existsSync(join(entryDir, ANSWERS_FILENAME));
+  const overlayRoot = repoClean ? entryDir : args.into;
+  if (repoClean) console.log(`Overlay: repo-clean — re-applying from the store entry ${entryDir}`);
+
+  const overlay = reapplyOverlay(overlayRoot, { force: args.force, generatedAt: new Date().toISOString(), layout: repoClean ? "store" : "in-repo" });
   if (overlay.skipped) {
     console.log(`Overlay: ${overlay.skipped} — run /setup-harness in this project first.`);
   } else {
