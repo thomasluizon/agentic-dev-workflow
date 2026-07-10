@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { toYaml, fromYaml } from "./answers.mjs";
 import { deepMerge } from "../hooks/logic/config.mjs";
@@ -101,7 +102,7 @@ function parseArgs(argv) {
   return args;
 }
 
-if (import.meta.url === (await import("node:url")).pathToFileURL(process.argv[1]).href) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [command, ...rest] = process.argv.slice(2);
   const { dir, file } = parseArgs(rest);
   if (command === "resolve") {

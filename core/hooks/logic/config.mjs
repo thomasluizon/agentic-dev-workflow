@@ -65,13 +65,22 @@ function readJsonIfExists(file) {
 
 const POLICY_FILENAME = "hooks.policy.json";
 
+// The global config dir, honoring Claude Code's CLAUDE_CONFIG_DIR override (the
+// same resolution bootstrap + config.mjs use), else ~/.claude. Without this a
+// machine that relocates its Claude config would write the global policy where
+// the hooks never look, silently dropping machine-wide enforcement.
+function globalPolicyPath() {
+  const claudeDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+  return path.join(claudeDir, POLICY_FILENAME);
+}
+
 function findProjectPolicy(startDir) {
   let dir = startDir || process.cwd();
-  const home = os.homedir();
+  const globalPath = globalPolicyPath();
   for (let i = 0; i < 40; i++) {
     const candidate = path.join(dir, POLICY_FILENAME);
     // The global policy is loaded separately; don't double-count it as project.
-    if (candidate !== path.join(home, ".claude", POLICY_FILENAME) && fs.existsSync(candidate)) {
+    if (candidate !== globalPath && fs.existsSync(candidate)) {
       return readJsonIfExists(candidate);
     }
     const parent = path.dirname(dir);
@@ -82,7 +91,7 @@ function findProjectPolicy(startDir) {
 }
 
 export function loadPolicy(startDir) {
-  const global = readJsonIfExists(path.join(os.homedir(), ".claude", POLICY_FILENAME));
+  const global = readJsonIfExists(globalPolicyPath());
   const project = findProjectPolicy(startDir);
   let policy = DEFAULT_POLICY;
   if (global) policy = deepMerge(policy, global);
