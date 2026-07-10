@@ -1,8 +1,14 @@
 #!/usr/bin/env node
-// Regenerates the two tool adapters from a single manifest. Each adapter file
-// is a THIN wrapper: the host tool's required header plus a pointer to the
+// Regenerates the SKILL + AGENT adapters from a single manifest. Each adapter
+// file is a THIN wrapper: the host tool's required header plus a pointer to the
 // matching core/ body — no logic is ever duplicated across tools. Run this after
 // changing the skill roster; the generated files are committed.
+//
+// This script only owns the generated `skills/` and `agents/` subtrees. The
+// dual-target hook engine adapters (`claude-code/hooks/`, `claude-code/workflows/`,
+// `opencode/plugin/`) are AUTHORED shells that import the shared logic core — they
+// are NOT generated here and must survive regeneration, so the wipe below is
+// scoped to skills/ + agents/, never the whole adapter base.
 //
 // Driver = Claude Code; opencode is a thin compat layer. Codex is a locked-out
 // decision — do not re-add a codex path here.
@@ -64,7 +70,8 @@ fallback.
 // ---- Claude Code: .claude/skills/<skill>/SKILL.md + .claude/agents/<agent>.md
 function genClaudeCode() {
   const base = join(packRoot, "adapters/claude-code");
-  rmSync(base, { recursive: true, force: true });
+  rmSync(join(base, "skills"), { recursive: true, force: true });
+  rmSync(join(base, "agents"), { recursive: true, force: true });
   for (const [name, corePath, description, argHint] of skills) {
     const fm = [
       "---",
@@ -85,7 +92,8 @@ function genClaudeCode() {
 // ---- OpenCode: .opencode/skills/<skill>/SKILL.md + .opencode/agents/<agent>.md
 function genOpenCode() {
   const base = join(packRoot, "adapters/opencode");
-  rmSync(base, { recursive: true, force: true });
+  rmSync(join(base, "skills"), { recursive: true, force: true });
+  rmSync(join(base, "agents"), { recursive: true, force: true });
   for (const [name, corePath, description] of skills) {
     const fm = ["---", `description: ${description}`, "---", ""].join("\n");
     write(join(base, "skills", name, "SKILL.md"), fm + pointerBody(name, `../_core/${corePath}`, description));

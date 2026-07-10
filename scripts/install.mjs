@@ -5,7 +5,7 @@
 // re-uses `vendor()` to refresh an existing install.
 
 import {
-  cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync,
+  cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join, relative } from "node:path";
@@ -17,18 +17,28 @@ const packRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 // to the consumer root; `coreSubdir` is where core/ is vendored; `agentsSubdir`
 // (optional) is where the agent wrappers land. The adapter wrappers reference
 // core with a relative pointer that resolves from `skillsSubdir` to `coreSubdir`.
+// `engineDirs` vendors the dual-target hook-engine adapters (authored shells that
+// import the vendored logic core); the hook shells probe `../skills/_core/hooks/
+// logic`, so the layout keeps them a sibling of the vendored core. (Wiring the
+// Claude Code hooks into settings.json + registering nothing for opencode's
+// auto-loaded plugin is the bootstrap step; this vendors the files.)
 const layouts = {
   "claude-code": {
     adapterSkillsDir: "skills",
     skillsSubdir: ".claude/skills",
     coreSubdir: ".claude/skills/_core",
     agentsSubdir: ".claude/agents",
+    engineDirs: [
+      { from: "hooks", to: ".claude/hooks" },
+      { from: "workflows", to: ".claude/workflows" },
+    ],
   },
   opencode: {
     adapterSkillsDir: "skills",
     skillsSubdir: ".opencode/skills",
     coreSubdir: ".opencode/skills/_core",
     agentsSubdir: ".opencode/agents",
+    engineDirs: [{ from: "plugin", to: ".opencode/plugin" }],
   },
 };
 
@@ -66,6 +76,10 @@ export function vendor({ tool, into, ref = "main", dryRun = false }) {
   if (layout.agentsSubdir) {
     plan.push({ from: join(adapterDir, "agents"), to: join(into, layout.agentsSubdir) });
   }
+  for (const dir of layout.engineDirs || []) {
+    const from = join(adapterDir, dir.from);
+    if (existsSync(from)) plan.push({ from, to: join(into, dir.to) });
+  }
 
   if (dryRun) {
     console.log(`[dry-run] install tool=${tool} ref=${ref} into=${into}`);
@@ -90,7 +104,7 @@ export function vendor({ tool, into, ref = "main", dryRun = false }) {
       sourceType: "github",
       ref,
       tool,
-      installedPaths: [layout.skillsSubdir, layout.coreSubdir, layout.agentsSubdir].filter(Boolean),
+      installedPaths: [layout.skillsSubdir, layout.coreSubdir, layout.agentsSubdir, ...(layout.engineDirs || []).map((d) => d.to)].filter(Boolean),
       computedHash,
     },
   };

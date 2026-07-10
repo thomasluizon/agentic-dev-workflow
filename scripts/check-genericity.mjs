@@ -16,13 +16,25 @@
 //      is just an inline illustration). The commit-trailer string has no
 //      legitimate generic use at all, so it is never exempted.
 
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 
 const packRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const coreDir = join(packRoot, "core");
+
+// The enforced trees: the tool-agnostic core, plus the AUTHORED engine adapters
+// (the dual-target hook shells, the opencode plugin, and the Workflow-audit
+// accelerator). The generated skill/agent pointers under adapters/*/skills and
+// adapters/*/agents are derived from core (already checked), so they are not
+// re-scanned. Every one of these must stay free of project strings and baked
+// SDLC policy — the shells read all of that from hooks.policy.json at runtime.
+const enforcedDirs = [
+  join(packRoot, "core"),
+  join(packRoot, "adapters", "claude-code", "hooks"),
+  join(packRoot, "adapters", "claude-code", "workflows"),
+  join(packRoot, "adapters", "opencode", "plugin"),
+].filter((d) => existsSync(d));
 
 // Each pattern is a leak: a name, vendor, brand, or absolute path that would
 // couple core/ to one project. Add project-neutral terms here, never remove the
@@ -75,7 +87,7 @@ function walk(dir) {
 }
 
 const leaks = [];
-for (const file of walk(coreDir)) {
+for (const file of enforcedDirs.flatMap((d) => walk(d))) {
   const lines = readFileSync(file, "utf8").split(/\r?\n/);
   lines.forEach((line, i) => {
     for (const { label, re } of forbidden) {
@@ -93,13 +105,13 @@ for (const file of walk(coreDir)) {
 }
 
 if (leaks.length > 0) {
-  console.error(`Genericity check FAILED — ${leaks.length} project-specific string(s) in core/:\n`);
+  console.error(`Genericity check FAILED — ${leaks.length} project-specific string(s) in the enforced tree:\n`);
   for (const leak of leaks) {
     console.error(`  ${leak.file}:${leak.line}  [${leak.label}]`);
     console.error(`    ${leak.text}`);
   }
-  console.error(`\nMove project-specific values and SDLC policy into workflow.config.yaml; core/ must stay generic.`);
+  console.error(`\nMove project values into workflow.config.yaml and SDLC policy into hooks.policy.json; core/ and the engine adapters must stay generic.`);
   process.exit(1);
 }
 
-console.log("Genericity check passed — core/ is free of project-specific strings and hardcoded policy.");
+console.log("Genericity check passed — core/ and the engine adapters are free of project-specific strings and hardcoded policy.");

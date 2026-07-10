@@ -6,12 +6,18 @@ on:
   pull_request:
 
 jobs:
-  check-genericity:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: core/ must contain no project-specific strings
+      - name: core/ + engine adapters must contain no project-specific strings
         run: node scripts/check-genericity.mjs
+      - name: dual-target hook engine proof (logic core + vendored CC hook + opencode plugin)
+        run: node scripts/test-hook-engine.mjs
+      - name: skill/agent adapters are in sync with the manifest
+        run: |
+          node scripts/gen-adapters.mjs
+          git diff --exit-code -- adapters || (echo "adapters/ is stale — run node scripts/gen-adapters.mjs and commit" && exit 1)

@@ -1,0 +1,27 @@
+{
+  "_comment": "Merge this `hooks` block into your project's .claude/settings.json to wire the dual-target engine's Claude Code side. setup-harness / bootstrap merge it for you; shown here so the wiring is inspectable. The opencode side needs no wiring — it auto-loads from .opencode/plugin/.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/git-guardrails.mjs\"" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/content-guard.mjs\"" }]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/proactivity-reminder.mjs\"" }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{ "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/proactivity-guard.mjs\"" }]
+      }
+    ]
+  }
+}

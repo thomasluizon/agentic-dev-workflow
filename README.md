@@ -48,19 +48,36 @@ baseline that ships in `core/_shared/`.
 ## Architecture
 
 ```
-core/          ← tool-agnostic skill bodies — the SINGLE source of truth
+core/          ← tool-agnostic skill bodies + hook logic — the SINGLE source of truth
   _shared/     ← verification-protocol + behavioral-baseline (read by many skills)
   pipeline/ review/ intake/ research/ ops/ meta/ agents/
-adapters/      ← thin per-tool wrappers; each points at a core/ body, no logic
-  claude-code/ ← .claude/skills + .claude/agents
-  opencode/    ← .opencode/skills + .opencode/agents
-scripts/       ← install / sync / gen-adapters / check-genericity
-workflow.config.example.yaml   ← the config schema (copy → workflow.config.yaml)
+  hooks/       ← the dual-target hook engine: logic/ + templates.mjs + lint-generators/
+adapters/      ← per-tool wrappers off the one core; no logic duplicated
+  claude-code/ ← .claude/skills + .claude/agents (generated) · hooks/ + workflows/ (authored engine)
+  opencode/    ← .opencode/skills + .opencode/agents (generated) · plugin/ (authored engine)
+scripts/       ← install / sync / gen-adapters / check-genericity / test-hook-engine
+workflow.config.example.yaml   ← config schema (copy → workflow.config.yaml)
+hooks.policy.example.json      ← hook-policy schema (setup writes hooks.policy.json)
 ```
 
-Each adapter wrapper is a few lines: the tool's required frontmatter plus a pointer to
-the matching `core/**` body. Logic is never duplicated across tools — fix a skill once
-in `core/` and every adapter inherits it.
+Each **skill/agent** wrapper is a few lines: the tool's required frontmatter plus a
+pointer to the matching `core/**` body — generated from a manifest. Each **hook**
+adapter is a thin shell that imports the shared logic core and translates one tool's
+block mechanism. Either way, logic lives once — fix it in `core/` and every tool inherits it.
+
+## Enforcement — dual-target hook engine
+
+Skills are procedures; some rules must be **enforced**, not suggested. Every enforceable
+invariant is written once in `core/hooks/logic/` and enforced in **both** Claude Code (a
+`.mjs` hook, `exit 2` / `decision:block`) and opencode (a plugin, `tool.execute.before` →
+throw) off that one core — no twin drift. The library covers git actions (branch name,
+protected ref, ticket ref, no `--no-verify`, forbidden trailers, large binaries), content
+(em dash, banned phrases, secrets), and the proactivity guard (a re-injected reminder +
+a model-configurable turn review). Code-level policies route to a **real ESLint / Roslyn /
+ruff rule** where the stack supports it; the content hook is the fallback. All policy lives
+in `hooks.policy.json` (JSON, zero runtime deps) — **no SDLC constant is baked in**, so a
+machine that bans an authorship trailer and one that requires it are one field apart. See
+`core/hooks/README.md`; `node scripts/test-hook-engine.mjs` proves it end to end.
 
 ## Install
 
@@ -130,9 +147,10 @@ it. The pack never requires hooks.
 
 ## Genericity guarantee
 
-`core/**` must never contain a project-specific string **or** a hardcoded SDLC policy
-constant. CI runs `node scripts/check-genericity.mjs`, which fails the build on two classes
-of leak:
+`core/**` and the authored engine adapters (`adapters/*/hooks`, `adapters/*/plugin`,
+`adapters/claude-code/workflows`) must never contain a project-specific string **or** a
+hardcoded SDLC policy constant. CI runs `node scripts/check-genericity.mjs`, which fails the
+build on two classes of leak:
 
 1. **Project strings** — any project name, brand, author handle, or absolute machine path.
 2. **Policy constants** — a `Co-Authored-By` commit trailer, the `gh` tracker CLI, a
@@ -145,10 +163,13 @@ This is what keeps the pack reusable — project specifics *and* git policy belo
 
 ## Maintaining the pack
 
-- Skill logic lives once in `core/`. Edit there; every adapter inherits the change.
-- The adapters are generated from a manifest — after changing the skill roster, run
-  `node scripts/gen-adapters.mjs` and commit the regenerated `adapters/` tree.
-- `node scripts/check-genericity.mjs` must stay green; CI runs it on every push and PR.
+- Skill + hook logic lives once in `core/`. Edit there; every adapter inherits the change.
+- The **skill/agent** adapters are generated from a manifest — after changing the roster,
+  run `node scripts/gen-adapters.mjs` and commit the regenerated `skills/` + `agents/` trees.
+  The **hook engine** adapters (`hooks/`, `plugin/`, `workflows/`) are authored shells and are
+  preserved across regeneration — edit them directly.
+- `node scripts/check-genericity.mjs` and `node scripts/test-hook-engine.mjs` must stay green;
+  CI runs both on every push and PR.
 
 ## License
 
