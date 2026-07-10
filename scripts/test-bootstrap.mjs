@@ -81,7 +81,9 @@ const report = bootstrap({ claudeDir, packRoot, generatedAt: "2026-01-02T00:00:0
 Truthy("bootstrap: a pipeline skill lands (prime)", has(claudeDir, "skills/prime/SKILL.md"));
 Truthy("bootstrap: /setup-harness lands", has(claudeDir, "skills/setup-harness/SKILL.md"));
 Truthy("bootstrap: report flags setup-harness present", report.hasSetupHarness);
-T("bootstrap: /update-harness is absent (arrives in 7g), not a failure", report.hasUpdateHarness, false);
+Truthy("bootstrap: /update-harness lands (7g)", has(claudeDir, "skills/update-harness/SKILL.md"));
+T("bootstrap: report flags update-harness present", report.hasUpdateHarness, true);
+Truthy("bootstrap: the staleness machinery lands next to the meta skills", has(claudeDir, "skills/_core/meta/staleness.mjs"));
 Truthy("bootstrap: the security-reviewer agent lands", has(claudeDir, "agents/security-reviewer.md"));
 Truthy("bootstrap: the git-guardrails hook lands", has(claudeDir, "hooks/git-guardrails.mjs"));
 Truthy("bootstrap: the audit workflow lands", has(claudeDir, "workflows/audit.mjs"));
@@ -105,6 +107,14 @@ T("manifest: records the pack ref", manifest.packRef, "test");
 T("manifest: records the node version", manifest.node, process.versions.node);
 Truthy("manifest: records a coreHash for update detection", typeof manifest.coreHash === "string" && manifest.coreHash.length === 64);
 Truthy("manifest: lists every installed item", manifest.items.length > 20 && manifest.items.some((i) => i.type === "skill" && i.name === "setup-harness"));
+
+console.log("\n# bootstrap: /update-harness monthly clock");
+Truthy("clock: harness.update.json seeded at install", has(claudeDir, "harness.update.json"));
+T("clock: seeded lastCheckedAt is null (never checked yet)", report.updateClock.lastCheckedAt, null);
+T("clock: seeded installedAt is the bootstrap stamp", report.updateClock.installedAt, "2026-01-02T00:00:00Z");
+const clockBefore = readFileSync(join(claudeDir, "harness.update.json"), "utf8");
+bootstrap({ claudeDir, packRoot, generatedAt: "2026-02-09T00:00:00Z", ref: "test" });
+T("clock: re-running bootstrap does NOT reset the clock (next check not pushed out)", readFileSync(join(claudeDir, "harness.update.json"), "utf8"), clockBefore);
 
 // ---------------------------------------------------------------------------
 // 4. proactivity hooks wired into settings.json (idempotent)
