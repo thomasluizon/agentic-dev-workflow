@@ -1,9 +1,9 @@
 # Setup Harness: research → interview → decode → gate → generate
 
-> **Machinery (ships beside this body in `setup/`):** `detect.mjs` · `commands.mjs` · `discovery.mjs` · `questions.mjs` · `answers.mjs` · `trackers.mjs` · `docs.mjs` · `decode.mjs` · `gate.mjs` · `generate.mjs` · `adopt.mjs` · `manifest.mjs` · `verify.mjs`
+> **Machinery (ships beside this body in `setup/`):** `detect.mjs` · `commands.mjs` · `discovery.mjs` · `questions.mjs` · `answers.mjs` · `trackers.mjs` · `docs.mjs` · `decode.mjs` · `gate.mjs` · `generate.mjs` · `config.mjs` (two-layer resolve) · `adopt.mjs` · `manifest.mjs` · `verify.mjs`
 > **Produces:** a confirmed machine profile + repo set, the resumable `harness.answers.yaml` record, and — after an approval gate — the generated harness: `CLAUDE.md`, `.claude/rules/*`, dual-target hooks (`hooks.policy.json`), lint rules, `workflow.config.yaml`, machine-specialized skills, a versioned `harness.manifest.json`, and a self-verify report.
 
-**Input**: run inside the project you are standing up. Flags: `--express` (essentials only), `--resume` (continue an interrupted session).
+**Input**: run inside the project you are standing up. Flags: `--express` (essentials only), `--resume` (continue an interrupted session), `--global` (write the machine-wide DEFAULTS layer, not a project overlay — see "Two-layer config" below).
 
 Stand up the harness the way this whole pack was built: **research what the machine already tells you, interview for what it can't, collect the company's own rule docs, decode every rule to its enforcement tier, and — only after you approve the decomposition — generate the tailored harness.** The interview half (phases 0–5) is read-only. The generate half (phases 6–10) is **gated**: nothing enforcing is written until you sign off on the decomposition table.
 
@@ -121,9 +121,18 @@ node "<SETUP_DIR>/gate.mjs" render harness.answers.yaml   # writes harness.decom
 
 `harness.decomposition.md` lists every rule with its proposed **Tier** and **Action** (`enforce` / `soften` / `drop`), path-scopes/exceptions, and any conflict flagged with ⚠. **The user edits the Tier and Action columns** (softening a hook to an advisory rule, dropping a false hit, picking a winner for a conflict) and then says **go**. Re-read the edited file with `parseGateTable` + `applyEdits`, and confirm `pendingConflicts` is empty — **do not proceed while any conflict is unsettled**. Nothing enforcing has been written yet.
 
+## Two-layer config — machine defaults vs project overrides
+
+On a PC where **every project follows the same conventions**, you don't re-answer the machine-wide questions each repo. The mechanical config layers, exactly like the hook policy:
+
+- **Global (`~/.claude/workflow.config.yaml`)** — machine/company defaults: tracker host + driver, branch grammar, merge strategy, forbidden trailers, tool defaults, audit scale, the enforcement mirror. Written once by **`/setup-harness --global`**, which generates the *global slice* (`generate.mjs` → `planGlobalArtifacts`) plus a global `~/.claude/hooks.policy.json`, and — with `node bootstrap.mjs --enforce-globally` (or automatically on the next `bootstrap` once that global policy exists) — wires the git/content guardrails machine-wide so enforcement holds in every repo.
+- **Project (`<project>/workflow.config.yaml`)** — only this repo's `repos[]`, name, conventions, and any overrides. When a global layer exists, a project run writes the **lean project slice** (`planArtifacts` with `configScope: "project"`), not the full config.
+
+Skills read the **effective** config = global merged with project (**project wins**): `node "<SETUP_DIR>/config.mjs" resolve --dir <project>`. `loadPolicy` merges the policy the same way (`DEFAULT < global < project`). So machine-wide facts/tool-defaults (via a global `~/.claude/CLAUDE.md` + `~/.claude/rules/*`) AND machine-wide enforcement both hold, and a new repo only needs its `repos[]`.
+
 ## Phase 9 — Generate + wire (after approval)
 
-From the approved decomposition, generate every artifact (`generate.mjs` → `planArtifacts` builds the plan; `writeArtifacts` commits it):
+From the approved decomposition, generate every artifact. In a normal (project) run use `generate.mjs` → `planArtifacts` (`writeArtifacts` commits it); in a `--global` run use `planGlobalArtifacts` and write to `~/.claude`:
 
 - **`hooks.policy.json`** — the dual-target enforcement policy the Claude Code hooks **and** the opencode plugin both read (filled from the enforce rows via the template library).
 - **`workflow.config.yaml`** — the mechanical values the generic pipeline skills read (repos + commands, branch/merge/tracker conventions, the `hooks:` mirror). AI-managed; never hand-edited.

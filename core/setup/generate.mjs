@@ -21,6 +21,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { DEFAULT_POLICY, deepMerge } from "../hooks/logic/config.mjs";
 import { toYaml } from "./answers.mjs";
+import { splitConfig } from "./config.mjs";
 import { strongestLayerFor } from "../hooks/lint-generators/index.mjs";
 import { TRACKER_DRIVERS } from "./trackers.mjs";
 
@@ -312,19 +313,48 @@ export function buildSkillArtifacts(approved) {
 // Assemble every artifact into one write plan. `handEditable` marks the files a
 // user is expected to refine (the manifest preserves those on re-run); the
 // generated policy + config are AI-managed and overwritten.
-export function planArtifacts(answers, approved, { stack = { linters: [] } } = {}) {
+//
+// `configScope` selects which slice of the config the project file carries:
+//   "full"    — the whole config (the default; a standalone project with no
+//               global layer).
+//   "project" — only the project slice (name, repos[], conventions, tracker
+//               coordinates); the machine-wide defaults live in the global layer
+//               (see planGlobalArtifacts) and are merged in at runtime by
+//               config.mjs `resolveConfig`. Used on a uniform PC.
+export function planArtifacts(answers, approved, { stack = { linters: [] }, configScope = "full" } = {}) {
   const policy = buildHooksPolicy(approved);
   const config = buildConfig(answers, approved, policy);
+  const configContent = configScope === "project" ? splitConfig(config).project : config;
   const lint = buildLintArtifacts(approved, stack);
   const plan = [
     { path: "hooks.policy.json", content: JSON.stringify(policy, null, 2) + "\n", kind: "policy", tier: "HOOK", handEditable: false, sourceRowIds: enforceRows(approved).map((r) => r.id) },
-    { path: "workflow.config.yaml", content: toYaml(config), kind: "config", tier: "CONFIG", handEditable: false, sourceRowIds: [] },
+    { path: "workflow.config.yaml", content: toYaml(configContent), kind: "config", tier: "CONFIG", handEditable: false, sourceRowIds: [] },
     { path: "CLAUDE.md", content: buildClaudeMd(answers, approved), kind: "claude-md", tier: "FACT", handEditable: true, sourceRowIds: rowsOfTier(approved, "FACT").map((r) => r.id) },
     ...buildRules(approved).map((a) => ({ ...a, kind: "rule", tier: "RULE", handEditable: true })),
     ...lint.artifacts.map((a) => ({ ...a, kind: "lint", tier: "LINT", handEditable: true })),
     ...buildSkillArtifacts(approved).map((a) => ({ ...a, kind: "skill", tier: "SKILL", handEditable: true })),
   ];
   return { plan, policy, config, gaps: lint.gaps };
+}
+
+// The GLOBAL (machine/company) layer for a uniform PC: the machine-wide config
+// defaults + the shared enforcement policy + the proactive tool-default rules,
+// written to ~/.claude so EVERY project inherits them (config.mjs `resolveConfig`
+// merges global < project; hooks/logic `loadPolicy` merges the global
+// hooks.policy.json < project). Carries NO repos[], CLAUDE.md facts, lint
+// scaffolds, or specialized skills — those are per-project.
+export function planGlobalArtifacts(answers, approved) {
+  const policy = buildHooksPolicy(approved);
+  const config = buildConfig(answers, approved, policy);
+  const global = splitConfig(config).global;
+  const plan = [
+    { path: "hooks.policy.json", content: JSON.stringify(policy, null, 2) + "\n", kind: "policy", tier: "HOOK", handEditable: false, sourceRowIds: enforceRows(approved).map((r) => r.id) },
+    { path: "workflow.config.yaml", content: toYaml(global), kind: "config", tier: "CONFIG", handEditable: false, sourceRowIds: [] },
+    ...buildRules(approved)
+      .filter((a) => a.path === ".claude/rules/tool-defaults.md")
+      .map((a) => ({ ...a, path: "rules/tool-defaults.md", kind: "rule", tier: "RULE", handEditable: true })),
+  ];
+  return { plan, policy, config: global };
 }
 
 export function writeArtifacts(plan, root = process.cwd()) {

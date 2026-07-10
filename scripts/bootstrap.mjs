@@ -154,6 +154,51 @@ export function wireProactivityHooks(claudeDir, { backupStamp = "" } = {}) {
   return { added, alreadyPresent, wired: added.length > 0 || alreadyPresent.length === wanted.length };
 }
 
+// ---- global enforcement hooks -> ~/.claude/settings.json ---------------------
+
+// Wire the git + content GUARDRAILS machine-wide, so a uniform PC enforces the
+// same policy in every project. This is opt-in (the proactivity guard is wired
+// unconditionally; enforcement is not) because it makes git-guardrails fire in
+// EVERY repo — desirable only when you've set machine-wide policy. loadPolicy
+// already merges the global ~/.claude/hooks.policy.json < each project's, so the
+// wired hooks read the effective policy. Idempotent, matcher-aware, backed up.
+export function wireEnforcementHooks(claudeDir, { backupStamp = "" } = {}) {
+  const settingsPath = join(claudeDir, "settings.json");
+  let settings = {};
+  let existed = false;
+  if (existsSync(settingsPath)) {
+    existed = true;
+    try {
+      settings = JSON.parse(readFileSync(settingsPath, "utf8")) || {};
+    } catch {
+      settings = {};
+    }
+  }
+  const wanted = [
+    { event: "PreToolUse", matcher: "Bash", file: "git-guardrails.mjs" },
+    { event: "PostToolUse", matcher: "Edit|Write|MultiEdit", file: "content-guard.mjs" },
+  ];
+  const added = [];
+  const alreadyPresent = [];
+  settings.hooks = settings.hooks && typeof settings.hooks === "object" ? settings.hooks : {};
+  for (const { event, matcher, file } of wanted) {
+    const command = `node "${join(claudeDir, "hooks", file)}"`;
+    const list = Array.isArray(settings.hooks[event]) ? settings.hooks[event] : [];
+    const present = list.some((entry) => (entry.hooks || []).some((h) => typeof h.command === "string" && h.command.includes(file)));
+    if (present) alreadyPresent.push(file);
+    else {
+      list.push({ matcher, hooks: [{ type: "command", command }] });
+      added.push(file);
+    }
+    settings.hooks[event] = list;
+  }
+  if (added.length) {
+    if (existed) writeFileSync(join(claudeDir, `settings.json.harness-bak${backupStamp ? `-${backupStamp}` : ""}`), readFileSync(settingsPath));
+    writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+  }
+  return { added, alreadyPresent, wired: added.length > 0 || alreadyPresent.length === wanted.length };
+}
+
 // ---- bootstrap ---------------------------------------------------------------
 
 export function readBootstrapManifest(claudeDir) {
@@ -167,7 +212,7 @@ export function readBootstrapManifest(claudeDir) {
 // Install (or update in place) the CORE into a global ~/.claude. Returns a report
 // the CLI prints and the proof asserts on. Deterministic — the CLI stamps the
 // real time via `generatedAt` so the module stays testable.
-export function bootstrap({ claudeDir, packRoot = packRootDefault, wireHooks = true, generatedAt = "", ref = "main", nodeVersion = process.versions.node } = {}) {
+export function bootstrap({ claudeDir, packRoot = packRootDefault, wireHooks = true, enforceGlobally = false, generatedAt = "", ref = "main", nodeVersion = process.versions.node } = {}) {
   assertNodeVersion(MIN_NODE_MAJOR, nodeVersion);
   const root = resolveClaudeDir(claudeDir);
   const plan = buildPlan(packRoot);
@@ -200,7 +245,14 @@ export function bootstrap({ claudeDir, packRoot = packRootDefault, wireHooks = t
     }
   }
 
-  const hooks = wireHooks ? wireProactivityHooks(root, { backupStamp: generatedAt.replace(/[:.]/g, "-") }) : { added: [], alreadyPresent: [], wired: false };
+  const backupStamp = generatedAt.replace(/[:.]/g, "-");
+  const hooks = wireHooks ? wireProactivityHooks(root, { backupStamp }) : { added: [], alreadyPresent: [], wired: false };
+
+  // Machine-wide enforcement is opt-in: wire the git/content guardrails globally
+  // when asked, or automatically once a global policy exists (setup --global
+  // wrote ~/.claude/hooks.policy.json — an explicit machine-wide-policy choice).
+  const wantEnforcement = wireHooks && (enforceGlobally || existsSync(join(root, "hooks.policy.json")));
+  const enforcement = wantEnforcement ? wireEnforcementHooks(root, { backupStamp }) : { added: [], alreadyPresent: [], wired: false };
 
   const manifest = {
     version: 1,
@@ -228,6 +280,7 @@ export function bootstrap({ claudeDir, packRoot = packRootDefault, wireHooks = t
     updateClock,
     pruned,
     hooks,
+    enforcement,
   };
 }
 
@@ -238,6 +291,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--no-hooks") args.wireHooks = false;
+    else if (a === "--enforce-globally") args.enforceGlobally = true;
     else if (a === "--claude-dir") args.claudeDir = argv[++i];
     else if (a === "--ref") args.ref = argv[++i];
   }
@@ -254,6 +308,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     console.log(`  /setup-harness ${report.hasSetupHarness ? "installed" : "MISSING"} · /update-harness ${report.hasUpdateHarness ? "installed" : "MISSING"}`);
     if (report.hooks.added.length) console.log(`  wired proactivity hooks: ${report.hooks.added.join(", ")}`);
     else if (args.wireHooks) console.log(`  proactivity hooks already wired`);
+    if (report.enforcement.added.length) console.log(`  wired GLOBAL enforcement hooks: ${report.enforcement.added.join(", ")} (every project inherits ~/.claude/hooks.policy.json)`);
     if (report.pruned.length) console.log(`  pruned ${report.pruned.length} stale item(s) from a previous install`);
     const clock = dueReport(report.claudeDir, now);
     if (clock.nextDueAt) console.log(`  next /update-harness check due ${clock.nextDueAt.slice(0, 10)} (monthly, web-grounded)`);
