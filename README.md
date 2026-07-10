@@ -23,7 +23,10 @@ requires `TB-####` branches is one config away from the opposite one.
 > AI-installed harness: a `setup-harness` skill that researches the machine, interviews you,
 > decodes your company's own rule docs, and generates a tailored harness — hooks for what
 > must be enforced, skills for procedures, rules/facts for the rest. The generic `core/`
-> skills below are the proven foundation that installer builds on.
+> skills below are the proven foundation that installer builds on. Its first phases —
+> read-only machine research, repo discovery, the adaptive grill-me interview, and doc-source
+> collection (all in `core/setup/`, recording to a resumable `harness.answers.yaml`) — have
+> landed; the decode → gate → generate step that reads that record follows.
 
 ## What's in it
 
@@ -35,6 +38,7 @@ requires `TB-####` branches is one config away from the opposite one.
 | **Research** | `deep-research` · `llm-council` |
 | **Ops** | `investigate` (root-cause a prod incident end to end, read-only until a human gate) |
 | **Meta** | `handoff` (compact a session to resume clean) · `lesson` (capture a correction as a graduating gate) |
+| **Setup** | `setup-harness` (research the machine → discover repos → adaptive grill-me interview → doc decode-prep, recording to a resumable `harness.answers.yaml`; the decode → gate → generate step follows) |
 | **Agents** | `security-reviewer` (generic; parity / i18n / contract checks are config-gated inside `pr-review`, not separate agents) |
 
 `execute` is the gated conductor (`issue → prime → grill → plan → implement`) with hard,
@@ -52,6 +56,7 @@ core/          ← tool-agnostic skill bodies + hook logic — the SINGLE source
   _shared/     ← verification-protocol + behavioral-baseline (read by many skills)
   pipeline/ review/ intake/ research/ ops/ meta/ agents/
   hooks/       ← the dual-target hook engine: logic/ + templates.mjs + lint-generators/
+  setup/       ← setup-harness runbook + read-only detect/discover/interview machinery
 adapters/      ← per-tool wrappers off the one core; no logic duplicated
   claude-code/ ← .claude/skills + .claude/agents (generated) · hooks/ + workflows/ (authored engine)
   opencode/    ← .opencode/skills + .opencode/agents (generated) · plugin/ (authored engine)
