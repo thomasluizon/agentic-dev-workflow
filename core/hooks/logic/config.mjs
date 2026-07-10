@@ -1,8 +1,11 @@
 // Loads the hook policy at runtime. The policy is JSON (never YAML) so the hooks
 // have ZERO runtime dependencies: setup-harness reads workflow.config.yaml + the
 // interview and writes hooks.policy.json; the hooks only JSON.parse it. Layers,
-// weakest-to-strongest: built-in DEFAULT_POLICY < global (~/.claude) < project
-// (nearest hooks.policy.json walking up from the edited file).
+// weakest-to-strongest: built-in DEFAULT_POLICY < global (~/.claude) < STORE (the
+// out-of-repo per-project entry used in repo-clean mode, keyed by git root) <
+// project (nearest in-repo hooks.policy.json walking up from the edited file). The
+// store sits just below the in-repo layer, so an in-repo policy still wins and a
+// repo with no store entry is unaffected (its store read returns null).
 //
 // DEFAULT_POLICY encodes ONLY universally-safe defaults — block the git bypass
 // flags, protect main/master, scan for unambiguous secrets. Everything a project
@@ -13,6 +16,8 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+
+import { readStorePolicy } from "./store.mjs";
 
 export const DEFAULT_POLICY = {
   git: {
@@ -92,9 +97,11 @@ function findProjectPolicy(startDir) {
 
 export function loadPolicy(startDir) {
   const global = readJsonIfExists(globalPolicyPath());
+  const store = readStorePolicy(startDir);
   const project = findProjectPolicy(startDir);
   let policy = DEFAULT_POLICY;
   if (global) policy = deepMerge(policy, global);
+  if (store) policy = deepMerge(policy, store);
   if (project) policy = deepMerge(policy, project);
   return policy;
 }

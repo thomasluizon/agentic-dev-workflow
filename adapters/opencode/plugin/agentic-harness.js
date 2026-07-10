@@ -2,6 +2,13 @@
 // logic core the Claude Code hooks use to opencode's plugin contract:
 //   - tool.execute.before  -> FULL enforcement parity: a policy block throws,
 //                             which aborts the tool (git-action + content-scan).
+//   - experimental.chat.system.transform -> the repo-clean FACT/RULE injector:
+//                             pushes the project's out-of-repo facts + rules into
+//                             the system array, the opencode-side twin of the
+//                             Claude Code UserPromptSubmit project-facts hook. The
+//                             SDK signature was verified against @opencode-ai/plugin
+//                             1.14 (input, { system: string[] }); degrade-safe — a
+//                             missing store module or hook just skips injection.
 //   - event(session.idle)  -> the proactivity guard, best-effort: opencode's
 //                             idle event cannot rewind a finished turn the way
 //                             the Claude Code Stop hook does, so this surfaces a
@@ -62,6 +69,17 @@ export default async ({ directory, worktree } = {}) => {
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
 
+  // The repo-clean fact injector is optional: an older vendored core without
+  // store.mjs must still get full enforcement, so load it degrade-safe here and
+  // skip injection when it (or its store entry) is absent.
+  let injectStore = null;
+  try {
+    const { resolveRepoRoot, buildInjectedContext } = await core("store.mjs", dir);
+    injectStore = () => buildInjectedContext(resolveRepoRoot(dir));
+  } catch {
+    injectStore = null;
+  }
+
   const BLOCK = /^\[(git-guardrails|content-guard)/;
 
   return {
@@ -81,6 +99,15 @@ export default async ({ directory, worktree } = {}) => {
         // A policy block must propagate (opencode aborts the tool); an internal
         // bug must not — fail-open so the engine never wedges the tool.
         if (err && typeof err.message === "string" && BLOCK.test(err.message)) throw err;
+      }
+    },
+    "experimental.chat.system.transform": async (_input, output) => {
+      if (!injectStore || !output || !Array.isArray(output.system)) return;
+      try {
+        const context = injectStore();
+        if (context) output.system.push(context);
+      } catch {
+        /* degrade-safe: no store entry or an unreadable one -> no injection */
       }
     },
     event: async ({ event }) => {

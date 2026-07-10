@@ -19,6 +19,7 @@ import { pathToFileURL } from "node:url";
 
 import { toYaml, fromYaml } from "./answers.mjs";
 import { deepMerge } from "../hooks/logic/config.mjs";
+import { readStoreConfigText } from "../hooks/logic/store.mjs";
 
 export const CONFIG_FILENAME = "workflow.config.yaml";
 
@@ -84,11 +85,23 @@ function findProjectConfig(startDir) {
   return null;
 }
 
-// The effective config a skill reads: global defaults < project overrides.
+// The store config (repo-clean mode): parse the raw YAML the logic-layer store
+// read returns. The parse lives here (config.mjs owns the pack's YAML parser),
+// keeping logic/ dependency-free and free of any setup/ import.
+export function readStoreConfig(startDir) {
+  const text = readStoreConfigText(startDir);
+  return text ? fromYaml(text) : null;
+}
+
+// The effective config a skill reads. Layers, weakest-to-strongest, mirroring the
+// hook policy: global (machine defaults) < store (out-of-repo repo-clean entry) <
+// project (in-repo overrides). In-repo always wins; a repo with no store entry is
+// unaffected (the store read returns null).
 export function resolveConfig(startDir) {
   const global = readConfig(globalConfigPath());
+  const store = readStoreConfig(startDir);
   const project = findProjectConfig(startDir);
-  return resolveConfigFrom(global, project);
+  return deepMerge(resolveConfigFrom(global, store), project || {});
 }
 
 // ---- CLI ---------------------------------------------------------------------

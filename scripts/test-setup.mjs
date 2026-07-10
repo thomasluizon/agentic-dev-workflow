@@ -123,11 +123,14 @@ T("discovery: discoverRepos current repo is the pack", discoverRepos({ dir: pack
 // 4. questions — the fixed core set, express subset, resume, adaptivity
 // ---------------------------------------------------------------------------
 console.log("\n# questions");
-T("questions: core set has 12 sections", CORE_QUESTIONS.length, 12);
-const expectedSections = ["Scale", "Projects-root + repos", "Per-repo test/lint/typecheck/build", "VCS host + tracker", "Git-flow", "Text / style bans", "Code-level policies", "Tool defaults", "Doc sources", "Prod-investigation workflow", "Deploy / ship flow", "Bespoke flows"];
+T("questions: core set has 13 sections", CORE_QUESTIONS.length, 13);
+const expectedSections = ["Install mode", "Scale", "Projects-root + repos", "Per-repo test/lint/typecheck/build", "VCS host + tracker", "Git-flow", "Text / style bans", "Code-level policies", "Tool defaults", "Doc sources", "Prod-investigation workflow", "Deploy / ship flow", "Bespoke flows"];
 T("questions: every section-F topic present", SECTIONS, expectedSections);
-T("questions: express essentials = repos/commands/tracker/git-flow", expressQuestions().map((q) => q.id), ["repos", "commands", "vcsTracker", "gitFlow"]);
-T("questions: resume picks first unanswered", nextUnanswered(CORE_QUESTIONS, ["scale"]).id, "repos");
+T("questions: express essentials = mode/repos/commands/tracker/git-flow", expressQuestions().map((q) => q.id), ["installMode", "repos", "commands", "vcsTracker", "gitFlow"]);
+T("questions: resume picks first unanswered", nextUnanswered(CORE_QUESTIONS, ["installMode", "scale"]).id, "repos");
+const modeQ = CORE_QUESTIONS.find((q) => q.id === "installMode");
+T("questions: repo-clean unlocks the store-location followup", activeFollowups(modeQ, { answers: { installMode: "repo-clean" } }).some((f) => f.id === "installMode.repoClean"), true);
+T("questions: in-repo mode hides the repo-clean followup", activeFollowups(modeQ, { answers: { installMode: "in-repo" } }).length, 0);
 T("questions: resume returns null when all answered", nextUnanswered(CORE_QUESTIONS, CORE_QUESTIONS.map((q) => q.id)), null);
 const scaleQ = CORE_QUESTIONS.find((q) => q.id === "scale");
 T("questions: enterprise scale unlocks security-tier followup", activeFollowups(scaleQ, { answers: { "auditAnchors.scale": "enterprise" } }).some((f) => f.id === "scale.security-tiers"), true);

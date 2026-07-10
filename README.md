@@ -17,7 +17,7 @@ project strings and zero baked-in policy constants.
 | | CORE (ships in this repo) | OVERLAY (generated per project by `/setup-harness`) |
 |---|---|---|
 | **What** | The behavioral baseline + proactivity guard, the generic pipeline / review / intake / research / ops / meta skills, the `second-opinion` skill, the dual-target hook-template library, and `/setup-harness` + `/update-harness` themselves. | `CLAUDE.md` facts, `.claude/rules/*`, `hooks.policy.json` (dual-target enforcement), lint scaffolds, `workflow.config.yaml`, machine-specialized skills. |
-| **Where** | `~/.claude` (machine-wide), installed once by `bootstrap.mjs`. | `<project>/.claude` + project root, decoded from your interview + docs. |
+| **Where** | `~/.claude` (machine-wide), installed once by `bootstrap.mjs`. | `<project>/.claude` + project root — or the out-of-repo store (`~/.claude/harness/…`) in repo-clean mode — decoded from your interview + docs. |
 | **Portable?** | Yes — no project strings, no policy constants. | No — it *is* your project's policy. |
 
 The interview only ever **adds** to the CORE baseline; it never replaces it. The
@@ -110,9 +110,36 @@ node bootstrap.mjs --enforce-globally  # (opt-in) wire the git/content guardrail
 
 So you answer the machine-wide questions **once**. Facts and tool-defaults go machine-wide
 via `~/.claude/CLAUDE.md` + `~/.claude/rules/*` (Claude Code auto-loads both), and enforcement
-holds in every repo because `loadPolicy` merges `DEFAULT < ~/.claude/hooks.policy.json <
+holds in every repo because `loadPolicy` merges `DEFAULT < ~/.claude/hooks.policy.json < store <
 project`. A standalone project with no global layer still works — it just carries the full
 config itself.
+
+### A repo you can't touch — repo-clean (global-only) mode
+
+Some company machines forbid adding — or committing — *any* AI/Claude file inside a checkout.
+For those, `/setup-harness` offers a third install mode (it's the first interview question, so you
+pick it up front): **repo-clean**. Every artifact lives OUTSIDE the repo, in a store under
+`~/.claude/harness/` keyed by the repo's absolute git root, and **nothing** is written into the
+working dir:
+
+```
+~/.claude/harness/
+  index.json                    # { "<abs repo root>": { slug, mode } }
+  projects/<slug>/              # deterministic path-slug (a hook computes it from cwd)
+    workflow.config.yaml  hooks.policy.json  facts.md  rules/*  harness.answers.yaml  harness.manifest.json
+```
+
+The config + enforcement tiers resolve the store for free (both the hooks and the plugin already
+key off cwd; the store sits at `DEFAULT < global < store < in-repo`, so an in-repo project always
+wins and a normal repo with no store entry is untouched). The one tier with no native out-of-repo
+mechanism — project **facts/rules** — is delivered by a global injector: a Claude Code
+`UserPromptSubmit` hook (`project-facts.mjs`) and the opencode `experimental.chat.system.transform`
+hook, both pushing the same store-assembled facts by cwd, and both a silent no-op for any repo
+without a store entry. A linked **worktree** resolves to its main repo's one store entry. Two
+documented constraints (surfaced in the gaps report, never silent): a code policy can't become a
+repo lint rule (it falls back to the content-scan hook on the store policy), and a bespoke project
+skill is recorded + injected but not auto-discovered as a slash command (install machine-wide skills
+via `--global`). `node scripts/sync.mjs --into <project>` and `/update-harness` are store-aware.
 
 **Proactive drift — `/update-harness` (monthly, web-grounded).** Once a month, run
 `/update-harness`. It audits the *installed* harness for staleness you don't know about —
@@ -162,8 +189,8 @@ behavioral baseline in `core/_shared/`. The pipeline skills stay generic and rea
 core/          ← tool-agnostic skill bodies + hook logic — the SINGLE source of truth
   _shared/     ← verification-protocol + behavioral-baseline (read by many skills)
   pipeline/ review/ intake/ research/ ops/ meta/ agents/
-  hooks/       ← the dual-target hook engine: logic/ + templates.mjs + lint-generators/
-  setup/       ← setup-harness runbook + detect/discover/interview + decode/gate/generate/config(two-layer)/adopt/manifest/verify
+  hooks/       ← the dual-target hook engine: logic/ (incl. store.mjs, the repo-clean out-of-repo store) + templates.mjs + lint-generators/
+  setup/       ← setup-harness runbook + detect/discover/interview + decode/gate/generate/config(two-layer + store)/adopt/manifest/verify
 adapters/      ← per-tool wrappers off the one core; no logic duplicated
   claude-code/ ← .claude/skills + .claude/agents (generated) · hooks/ + workflows/ (authored engine)
   opencode/    ← .opencode/skills + .opencode/agents (generated) · plugin/ (authored engine)
@@ -216,7 +243,7 @@ which fails the build on two classes of leak:
   preserved across regeneration — edit them directly.
 - CI runs every gate on push + PR: `check-genericity`, `test-hook-engine`, `test-setup`,
   `test-generate`, `test-wiring`, `test-bootstrap`, `test-update-harness`,
-  `test-config-layers`, and the adapters-in-sync check. All must stay green.
+  `test-config-layers`, `test-repo-clean`, and the adapters-in-sync check. All must stay green.
 
 ## License
 

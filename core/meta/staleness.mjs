@@ -9,6 +9,9 @@
 //   - scanModelPins   : find every vendor-prefixed model id in the installed
 //                       harness, WITH its file:line, so the skill has an exact
 //                       candidate list to web-verify (never invents locations).
+//                       Store-aware: `collectStoreFiles` also reaches every
+//                       repo-clean project's out-of-repo store entry, since that
+//                       overlay lives under ~/.claude/harness, not in the repo.
 //   - overlayBehindCore: compare the coreHash the install recorded against the
 //                       pack's current coreHash — a pure "is my install behind?"
 //   - the update clock : a machine-global staleness record + due math, so the
@@ -22,6 +25,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { listStoreEntries } from "../hooks/logic/store.mjs";
 
 export const UPDATE_STATE_FILE = "harness.update.json";
 export const DEFAULT_INTERVAL_DAYS = 30;
@@ -59,6 +64,21 @@ export function scanModelPins(files) {
     });
   }
   return pins;
+}
+
+// Store-aware collection: every REPO-CLEAN project's overlay lives in the
+// out-of-repo store, not in the repo, so /update-harness scans there too. Returns
+// the same [{ path, text }] shape as collectHarnessFiles, but each path is prefixed
+// with the project's store slug so a stale pin cites WHICH project's store it is
+// in. Empty when no repo-clean project is registered.
+export function collectStoreFiles({ extensions = SCAN_EXTENSIONS } = {}) {
+  const out = [];
+  for (const entry of listStoreEntries()) {
+    for (const file of collectHarnessFiles(entry.entryDir, { extensions })) {
+      out.push({ path: `harness/projects/${entry.slug}/${file.path}`, text: file.text });
+    }
+  }
+  return out;
 }
 
 // Walk a harness root and read the files worth scanning (skill bodies, config,
@@ -182,12 +202,14 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (command === "scan") {
     const root = dir || process.cwd();
     console.log(JSON.stringify(scanModelPins(collectHarnessFiles(root)), null, 2));
+  } else if (command === "scan-store") {
+    console.log(JSON.stringify(scanModelPins(collectStoreFiles()), null, 2));
   } else if (command === "due") {
     console.log(JSON.stringify(dueReport(dir || process.cwd(), now), null, 2));
   } else if (command === "record") {
     console.log(JSON.stringify(recordUpdateRun(dir || process.cwd(), now), null, 2));
   } else {
-    console.error("usage: staleness.mjs <scan|due|record> --dir <path>");
+    console.error("usage: staleness.mjs <scan|scan-store|due|record> --dir <path>");
     process.exit(1);
   }
 }

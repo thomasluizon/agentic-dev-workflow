@@ -29,6 +29,8 @@ jobs:
         run: node scripts/test-update-harness.mjs
       - name: config-layers proof (global/project two-layer resolve / lossless split / global gen / enforcement wiring)
         run: node scripts/test-config-layers.mjs
+      - name: repo-clean proof (store keying / worktree resolution / zero repo files / config+policy+facts from store / dual-target injector)
+        run: node scripts/test-repo-clean.mjs
       - name: skill/agent adapters are in sync with the manifest
         run: |
           node scripts/gen-adapters.mjs

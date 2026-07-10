@@ -33,7 +33,15 @@ Collect the auditable surface and the recorded install fingerprint:
 node "<META_DIR>/staleness.mjs" scan --dir <CLAUDE_DIR>
 ```
 
-Returns every **model-pin candidate** as `{ file, line, model, context }` — a vendor-prefixed model id (Claude / GPT / Gemini / GLM / …) found in a skill body, a rule, `workflow.config.yaml`, or `hooks.policy.json`, with its exact location. These are *candidates only*; Phase 3 verifies each against the live roster before flagging.
+Returns every **model-pin candidate** as `{ file, line, model, context }` — a vendor-prefixed model id (Claude / GPT / Gemini / GLM / …) found in a skill body, a rule, `workflow.config.yaml`, or `hooks.policy.json`, with its exact location. These are *candidates only*; Phase 3 verifies each against the live roster before flagging. (Scanning `<CLAUDE_DIR>` already reaches any repo-clean store under `~/.claude/harness`.)
+
+**Store-aware — repo-clean projects.** A repo-clean project's overlay lives OUTSIDE its repo, in the out-of-repo store keyed by git root, so scan those entries explicitly for labeled per-project citations:
+
+```
+node "<META_DIR>/staleness.mjs" scan-store
+```
+
+Returns the same candidates, each `file` prefixed with `harness/projects/<slug>/…` so a stale pin cites which project's store it is in. When you fix one in Phase 5, edit the file in that store entry (and re-apply with `node scripts/sync.mjs --into <project>`, which for a repo-clean project targets the store).
 
 Also read `~/.claude/harness.bootstrap.json` for the install's recorded `coreHash` and `packRef` (what the last `bootstrap` installed), and note the tool versions the machine reports (Claude Code / opencode `--version`) for the capability check.
 

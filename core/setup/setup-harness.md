@@ -1,9 +1,9 @@
 # Setup Harness: research → interview → decode → gate → generate
 
-> **Machinery (ships beside this body in `setup/`):** `detect.mjs` · `commands.mjs` · `discovery.mjs` · `questions.mjs` · `answers.mjs` · `trackers.mjs` · `docs.mjs` · `decode.mjs` · `gate.mjs` · `generate.mjs` · `config.mjs` (two-layer resolve) · `adopt.mjs` · `manifest.mjs` · `verify.mjs`
-> **Produces:** a confirmed machine profile + repo set, the resumable `harness.answers.yaml` record, and — after an approval gate — the generated harness: `CLAUDE.md`, `.claude/rules/*`, dual-target hooks (`hooks.policy.json`), lint rules, `workflow.config.yaml`, machine-specialized skills, a versioned `harness.manifest.json`, and a self-verify report.
+> **Machinery (ships beside this body in `setup/`):** `detect.mjs` · `commands.mjs` · `discovery.mjs` · `questions.mjs` · `answers.mjs` · `trackers.mjs` · `docs.mjs` · `decode.mjs` · `gate.mjs` · `generate.mjs` · `config.mjs` (two-layer resolve + store) · `../hooks/logic/store.mjs` (repo-clean out-of-repo store) · `adopt.mjs` · `manifest.mjs` · `verify.mjs`
+> **Produces:** a confirmed machine profile + repo set, the resumable `harness.answers.yaml` record, and — after an approval gate — the generated harness: `CLAUDE.md`, `.claude/rules/*`, dual-target hooks (`hooks.policy.json`), lint rules, `workflow.config.yaml`, machine-specialized skills, a versioned `harness.manifest.json`, and a self-verify report. In **repo-clean mode** all of those live in the out-of-repo store instead, and NOTHING is written into the repo.
 
-**Input**: run inside the project you are standing up. Flags: `--express` (essentials only), `--resume` (continue an interrupted session), `--global` (write the machine-wide DEFAULTS layer, not a project overlay — see "Two-layer config" below).
+**Input**: run inside the project you are standing up. Flags (all optional accelerators — every one has an interview question that is asked and confirmed regardless): `--express` (essentials only), `--resume` (continue an interrupted session), `--global` (write the machine-wide DEFAULTS layer, not a project overlay — see "Two-layer config" below), `--repo-clean` (pre-select repo-clean install mode — see "Repo-clean mode" below).
 
 Stand up the harness the way this whole pack was built: **research what the machine already tells you, interview for what it can't, collect the company's own rule docs, decode every rule to its enforcement tier, and — only after you approve the decomposition — generate the tailored harness.** The interview half (phases 0–5) is read-only. The generate half (phases 6–10) is **gated**: nothing enforcing is written until you sign off on the decomposition table.
 
@@ -50,7 +50,15 @@ It returns the current repo, its workspace members (npm/pnpm workspaces or a `.s
 
 ## Phase 3 — The adaptive interview
 
-Walk the fixed core set from `questions.mjs` (thorough = all; `--express` = the `repos / commands / tracker / git-flow` essentials). The topics: **scale · projects-root + repos · per-repo commands · VCS host + tracker · git-flow (branch grammar, protected refs, merge strategy, ticket-ref, review reqs, authorship-trailer policy) · text/style bans · code-level policies · tool defaults · doc sources · prod-investigation · deploy/ship · bespoke flows.**
+Walk the fixed core set from `questions.mjs` (thorough = all; `--express` = the `install-mode / repos / commands / tracker / git-flow` essentials). The topics: **install mode · scale · projects-root + repos · per-repo commands · VCS host + tracker · git-flow (branch grammar, protected refs, merge strategy, ticket-ref, review reqs, authorship-trailer policy) · text/style bans · code-level policies · tool defaults · doc sources · prod-investigation · deploy/ship · bespoke flows.**
+
+**Install mode is the FIRST question** (`installMode`) and it decides *where* everything lands, so ask it up front. Pre-fill a recommendation from detection — a locked or scanned checkout, or a stated policy that no AI/Claude file may be added or committed to a repo, recommends **repo-clean**; otherwise **in-repo committed** (the default) — then confirm. The three modes:
+
+- **in-repo committed** (default, current behavior): artifacts are generated at the project root (`CLAUDE.md`, `.claude/*`, `workflow.config.yaml`, `hooks.policy.json`) and committed.
+- **in-repo gitignored**: the same files, but added to `.gitignore` so they live in the working dir without being committed. Use when commits are policed but untracked files are fine.
+- **repo-clean / global-only**: NOTHING is written into the repo — every artifact lives in the out-of-repo store under `~/.claude`, keyed to this repo's git root. Use on a machine that forbids any AI/Claude file in a checkout. See "Repo-clean mode" below; it changes Phase 9's generate + wire steps.
+
+The `--repo-clean` flag only pre-selects the answer; the question is still asked and confirmed.
 
 For each question:
 1. Pre-fill from detection where possible; state the guess and ask to confirm/correct rather than asking cold.
@@ -128,11 +136,37 @@ On a PC where **every project follows the same conventions**, you don't re-answe
 - **Global (`~/.claude/workflow.config.yaml`)** — machine/company defaults: tracker host + driver, branch grammar, merge strategy, forbidden trailers, tool defaults, audit scale, the enforcement mirror. Written once by **`/setup-harness --global`**, which generates the *global slice* (`generate.mjs` → `planGlobalArtifacts`) plus a global `~/.claude/hooks.policy.json`, and — with `node bootstrap.mjs --enforce-globally` (or automatically on the next `bootstrap` once that global policy exists) — wires the git/content guardrails machine-wide so enforcement holds in every repo.
 - **Project (`<project>/workflow.config.yaml`)** — only this repo's `repos[]`, name, conventions, and any overrides. When a global layer exists, a project run writes the **lean project slice** (`planArtifacts` with `configScope: "project"`), not the full config.
 
-Skills read the **effective** config = global merged with project (**project wins**): `node "<SETUP_DIR>/config.mjs" resolve --dir <project>`. `loadPolicy` merges the policy the same way (`DEFAULT < global < project`). So machine-wide facts/tool-defaults (via a global `~/.claude/CLAUDE.md` + `~/.claude/rules/*`) AND machine-wide enforcement both hold, and a new repo only needs its `repos[]`.
+Skills read the **effective** config = global merged with project (**project wins**): `node "<SETUP_DIR>/config.mjs" resolve --dir <project>`. `loadPolicy` merges the policy the same way (`DEFAULT < global < store < project`). So machine-wide facts/tool-defaults (via a global `~/.claude/CLAUDE.md` + `~/.claude/rules/*`) AND machine-wide enforcement both hold, and a new repo only needs its `repos[]`.
+
+## Repo-clean mode — the out-of-repo store
+
+On a machine where the repo working directory must stay pristine (a company PC that forbids adding — or committing — any AI/Claude file in a checkout), the whole overlay lives OUTSIDE the repo. There is no native per-project out-of-repo mechanism for the FACT/instructions tier (`~/.claude/CLAUDE.md` and `~/.claude/rules/*` load for *every* project; a rule's `paths:` scopes by file glob, not repo root), so repo-clean mode adds one: a store keyed by the repo's absolute git root, plus a global `UserPromptSubmit` hook that injects that project's facts by cwd.
+
+- **Store** (`~/.claude/harness/`, honoring `CLAUDE_CONFIG_DIR`): `index.json` (`{ "<abs repo root>": { slug, mode } }`) + `projects/<slug>/{workflow.config.yaml, hooks.policy.json, facts.md, rules/*, harness.answers.yaml, harness.manifest.json, harness.mode}`. The slug is a deterministic sanitized abs path (`store.mjs slugForPath`, Claude Code's own `~/.claude/projects/<encoded>` convention) so a hook computes the entry path from cwd with no index read; the index is only for listing/migration/collision.
+- **Root + worktrees:** the entry is keyed by the git root resolved with a pure-fs `.git` walk-up (`store.mjs resolveRepoRoot`). A linked worktree's `.git` FILE is followed to the MAIN worktree root, so every worktree of one repo shares a single store entry.
+- **Precedence:** the store sits just below the in-repo layer — `DEFAULT < global < store < in-repo` for both config (`resolveConfig`) and policy (`loadPolicy`). In-repo always wins; a mode-1/mode-2 repo has no store entry, so it is completely unaffected.
+- **Delivery is dual-target and cwd-keyed for free:** the config + enforcement tiers already key off cwd (the CC hooks and the opencode plugin both pass it), so they resolve the store with no new mechanism. Only the FACT/RULE tier needs a built injector — the CC `project-facts.mjs` UserPromptSubmit hook and the opencode `experimental.chat.system.transform` hook, both calling the one `store.mjs buildInjectedContext`.
+
+**Two known constraints (documented, never silent — surface them in the gaps report):**
+
+- **LINT tier:** a code policy a linter could express as a real rule cannot be wired into the pristine repo (no repo file). The rule is recorded in the store for the record, and enforcement falls back to the content-scan hook on the store policy. Each such row appears in the gaps report.
+- **SKILL tier:** the machine-specialized `investigate`/`ship` skills are machine-wide — install them via `/setup-harness --global` (they live under `~/.claude/skills`). A bespoke project skill is written to the store for record + sync and is surfaced by the fact injector, but it is NOT auto-discovered as a slash command (Claude Code discovers skills only under `~/.claude/skills` or `<repo>/.claude/skills`).
+
+**Migrating between modes.** To move a project from one mode to another, re-run `/setup-harness` and choose the target mode. Then clean up the OLD location, **manifest-guided and gated**: read the previous `harness.manifest.json` and remove ONLY the artifacts it lists (a hand-edited file is surfaced for the user to salvage first, never silently deleted), so files the harness did not generate are never touched. Moving *into* repo-clean removes the in-repo `CLAUDE.md`/`.claude/*`/`workflow.config.yaml`/`hooks.policy.json` the old manifest owned; moving *out of* repo-clean removes the store entry (`store.mjs` entry dir + its `index.json` row) after the in-repo overlay is generated. Confirm the deletion list before acting.
 
 ## Phase 9 — Generate + wire (after approval)
 
-From the approved decomposition, generate every artifact. In a normal (project) run use `generate.mjs` → `planArtifacts` (`writeArtifacts` commits it); in a `--global` run use `planGlobalArtifacts` and write to `~/.claude`:
+**Branch on the install mode chosen in Phase 3:**
+
+- **in-repo committed** (default): generate at the project root as below and commit.
+- **in-repo gitignored**: identical, then add the generated paths to the repo's `.gitignore` instead of committing them.
+- **repo-clean**: generate into the out-of-repo store and write ZERO files to the repo. Steps:
+  1. **Ensure the global install** — repo-clean requires it. If `~/.claude/harness.bootstrap.json` is missing, run `node bootstrap.mjs` (it also wires the fact injector). Then wire machine-wide enforcement: `node bootstrap.mjs --enforce-globally` (the git/content guardrails must fire in every repo, since the store policy has no in-repo `hooks.policy.json` to trigger the per-project wiring). Both are idempotent and backed up.
+  2. **Register the entry** — `store.mjs registerStoreEntry(repoRoot, { mode: "repo-clean" })` records `index.json` + writes `harness.mode`. Compute `repoRoot` with `store.mjs resolveRepoRoot(<project>)`.
+  3. **Generate to the store** — `planArtifacts(answers, approved, { stack, layout: "store", configScope })` remaps `CLAUDE.md`→`facts.md`, `.claude/rules/*`→`rules/*`, `.claude/skills/*`→`skills/*`, and writes with `writeArtifacts(plan, storeEntryDir(repoRoot))`. Use `configScope: "full"` (the store config is self-contained) unless a `--global` layer exists, then `configScope: "project"` for the lean slice. Write `harness.answers.yaml` + `harness.manifest.json` into the same store entry dir.
+  4. **Verify from the store** — the facts injector now emits this project's facts for its cwd; `resolveConfig`/`loadPolicy` resolve the store layer; the guardrail dry-run blocks a protected-branch push via the store policy (Phase 10, pointed at the store entry).
+
+From the approved decomposition, generate every artifact. In a normal (project) run use `generate.mjs` → `planArtifacts` (`writeArtifacts` commits it); in a `--global` run use `planGlobalArtifacts` and write to `~/.claude`; in a repo-clean run use `planArtifacts(..., { layout: "store" })` and write to the store entry:
 
 - **`hooks.policy.json`** — the dual-target enforcement policy the Claude Code hooks **and** the opencode plugin both read (filled from the enforce rows via the template library).
 - **`workflow.config.yaml`** — the mechanical values the generic pipeline skills read (repos + commands, branch/merge/tracker conventions, the `hooks:` mirror). AI-managed; never hand-edited.
@@ -151,7 +185,7 @@ node "<SETUP_DIR>/manifest.mjs"   # via generate — writes harness.manifest.jso
 
 ## Phase 10 — Self-verify + gaps report
 
-Prove the harness actually stands up (`verify.mjs run`):
+Prove the harness actually stands up (`verify.mjs run` — in repo-clean mode point its `root` at the store entry dir, since that is where the generated files live):
 
 - `workflow.config.yaml` parses; `hooks.policy.json` parses and has the expected shape.
 - Every generated skill/rule loads.
@@ -163,6 +197,7 @@ Report pass/fail per artifact, then print the completion summary. **Never-block 
 ## Harness setup — complete
 
 - **Machine**: {os} · {shell} · CLIs {…} · MCP {…}
+- **Mode**: {in-repo committed | in-repo gitignored | repo-clean → ~/.claude/harness/projects/{slug}}
 - **Repos** ({N}): {name — role — commands} …
 - **Tier tally**: {H} hooks · {L} lint rules · {R} rules · {F} facts · {S} skills
 - **Generated**: hooks.policy.json · workflow.config.yaml · CLAUDE.md · {R} rules · {S} skills
