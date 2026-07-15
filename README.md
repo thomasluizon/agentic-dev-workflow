@@ -173,7 +173,7 @@ runtime deps) — **no SDLC constant is baked in**. See `core/hooks/README.md`.
 | **Intake** | `feature` (idea → PRD → issues) · `prd` (warm or cold) · `stories` (PRD → tracer-bullet issues) |
 | **Research** | `deep-research` · `llm-council` |
 | **Ops** | `investigate` (root-cause a prod incident end to end, read-only until a human gate) |
-| **Meta** | `handoff` (compact a session to resume clean) · `lesson` (capture a correction as a graduating gate) · `update-harness` (monthly, web-grounded staleness audit) |
+| **Meta** | `handoff` (compact a session to resume clean) · `lesson` (capture a correction as a graduating gate) · `setup-statusline` (install the portable status line: model@effort, context bar, branch, rate-limit usage, account) · `update-harness` (monthly, web-grounded staleness audit) |
 | **Setup** | `setup-harness` (research → discover → interview → doc decode → tier every rule → the editable gate → generate + self-verify) |
 | **Agents** | `security-reviewer` (generic; parity / i18n / contract checks are config-gated inside `pr-review`) |
 
