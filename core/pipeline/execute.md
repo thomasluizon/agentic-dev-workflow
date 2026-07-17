@@ -25,6 +25,8 @@ Count numeric tokens (split on whitespace OR commas, mirroring `prime`'s mode de
 
 This skill targets issues in `{{config.issueTracker.repo}}`.
 
+> **Epic check.** `execute` is single-pass — one prime → plan → implement in one session. If the issue is an **epic** (a phased/multi-bundle body whose finish line spans several independent PRs), it is too big for one pass: use **`drive <issue#>`** instead — the resumable, spec-driven conductor that breaks the epic into bundles across fresh sessions.
+
 ## Stage 1 — PRIME (context load only)
 
 Run `prime <issue>` in single-issue mode. Wait for its context summary and stop there. `prime` is load-only: it loads every repo, the issue, conventions, and recent state, and ends at its own "Suggested next step: `plan …`". It never plans, never edits files, never implements. Do NOT carry past `prime`'s output into any work — the only path forward is GATE 1. Priming loads context, full stop.
@@ -33,13 +35,15 @@ Then present **GATE 1**.
 
 ## Stage 2 — GRILL (clarifying questions)
 
-Once GATE 1 returns `proceed`, invoke the `grill` skill against the primed issue context. Use it to resolve the open questions and risks `prime` surfaced and any ambiguity in the acceptance criteria. `grill` owns the mechanics (concrete decision-oriented questions; recommended answer first; no code during grilling). Do not re-describe grilling here and do not write code while grilling.
+Once GATE 1 returns `proceed`, invoke the `grill` skill against the primed issue context. Use it to resolve the open questions and risks `prime` surfaced and any ambiguity in the acceptance criteria. `grill` owns ALL grilling mechanics (how it asks, batching, recommended answers, when to research the codebase instead of asking) — do not restate or override them here, and do not write code while grilling.
 
-The user exits the grill loop explicitly. That exit is **GATE 2**.
+**Reuse check.** If `{{config.paths.plansDir}}/issue-<N>.decisions.md` already exists (a prior run was interrupted after grilling), show it and ask whether to reuse those decisions (skip the grill) or re-grill. Never silently re-grill over an existing decisions file.
+
+**Persist on exit (durable paper trail).** When the user exits the grill loop, write the resolved decisions to `{{config.paths.plansDir}}/issue-<N>.decisions.md` as a `## Decisions (from grilling)` block — each decision plus its why — BEFORE presenting the gate. This makes a context reset at GATE 2 free: the decisions survive and Stage 3's `plan` reads them from that file. That explicit exit is **GATE 2**.
 
 ## Stage 3 — PLAN
 
-Once GATE 2 returns `proceed`, run `plan <issue>` in single-plan mode, folding in the decisions resolved during grilling. The single-issue plan lands at `{{config.paths.plansDir}}/issue-<N>.plan.md`. Capture that exact path — Stage 4 needs it.
+Once GATE 2 returns `proceed`, run `plan <issue>` in single-plan mode, folding in the decisions from `{{config.paths.plansDir}}/issue-<N>.decisions.md` (written at grill exit). The single-issue plan lands at `{{config.paths.plansDir}}/issue-<N>.plan.md`. Capture that exact path — Stage 4 needs it.
 
 `plan` ends at its own passive "Next Step: Review the plan, then `implement …`". This skill replaces that suggestion with the active, blocking **GATE 3**.
 
@@ -91,11 +95,11 @@ The push/PR confirmation inside `implement` (its Phase 7) remains the final gate
 
 ## Multi-issue mode
 
-The caller passed 2+ issue numbers. This skill runs the SAME gated loop, fanned out: PRIME, PLAN, and IMPLEMENT delegate to `prime`, `plan`, and `implement` **in their own multi-issue modes** (parallel worktree subagents, `{{config.worktree.branchPattern}}` branches, concurrency cap — all owned there, never restated here). GRILL stays in the main session: it is an interactive conversation with the user, so it runs once per issue in turn, never as a subagent. The three gates become BATCH gates over all issues, with per-issue responses allowed.
+The caller passed 2+ issue numbers. This skill runs the SAME gated loop, fanned out: PRIME, PLAN, and IMPLEMENT delegate to `prime`, `plan`, and `implement` **in their own multi-issue modes** (parallel worktree subagents, `{{config.worktree.branchPattern}}` branches, concurrency cap — all owned there, never restated here). GRILL stays in the main session via `batch-grill` — one frontier over the whole set, an interactive conversation with the user, never a subagent. The three gates become BATCH gates over all issues, with per-issue responses allowed.
 
 ```
-prime <N…>  →  [GATE A]  →  grill each in turn  →  [GATE B]  →  plan <N…>  →  [GATE C]  →  implement <N…>
-(parallel worktrees)        (main session)                     (parallel worktrees)         (parallel worktrees)
+prime <N…>  →  [GATE A]  →  batch-grill <N…>  →  [GATE B]  →  plan <N…>  →  [GATE C]  →  implement <N…>
+(parallel worktrees)        (main session)                    (parallel worktrees)         (parallel worktrees)
 ```
 
 **Sequential fallback:** when `{{config.execution.hasNamedAgentRegistry}}` is false or `{{config.execution.maxParallelSubagents}}` ≤ 1, the delegated PRIME / PLAN / IMPLEMENT stages run their issues serially in the main thread (each skill's own sequential fallback), one issue at a time. The gate discipline below is unchanged.
@@ -104,9 +108,11 @@ prime <N…>  →  [GATE A]  →  grill each in turn  →  [GATE B]  →  plan <
 
 Run `prime <N1> <N2> …`. It validates each issue, creates the worktrees, and primes each (in parallel subagents, or serially under the fallback), returning the aggregated table. Lean on each issue's reported **open questions / risks** — they are the grill agenda for Stage 2; request them if a summary omits them. Then present **GATE A**.
 
-### Stage 2 (multi) — GRILL each, in turn
+### Stage 2 (multi) — BATCH-GRILL the set
 
-Once GATE A returns `proceed`, grill the issues ONE AT A TIME in the main session: announce which issue is up, invoke `grill` against that issue's primed summary + open questions, resolve it, then move to the next. Keep each issue's resolved decisions SEPARATE — Stage 3 folds each issue's decisions into that issue's own plan. After the last issue is grilled, present **GATE B**.
+Once GATE A returns `proceed`, invoke `batch-grill <N…>` in the main session. It collects the union of all issues' open questions into one frontier, asks each shared question ONCE (applying the answer to every affected issue), surfaces cross-issue conflicts before planning, and persists each issue's resolved decisions to its `<worktree>/{{config.paths.plansDir}}/issue-<N>.decisions.md`. Stage 3 folds each issue's file into that issue's own plan. `batch-grill` owns the frontier/clustering/attribution mechanics — do not restate them; it is interactive, main-session only, never a subagent. After the frontier is empty, present **GATE B**.
+
+Under the sequential fallback (no named-agent registry), `batch-grill` is unaffected — it is a main-session conversation either way.
 
 ### Stage 3 (multi) — PLAN all
 
@@ -124,7 +130,7 @@ Same default-deny discipline as the single-issue gates: no or ambiguous response
 
 | Response | Effect |
 |---|---|
-| `proceed` | Grill every issue in turn (Stage 2). |
+| `proceed` | Batch-grill the whole set (Stage 2). |
 | `drop <N…>` | Drop those issues; proceed with the rest. |
 | `abort` | Stop. Report the worktrees that were created. |
 

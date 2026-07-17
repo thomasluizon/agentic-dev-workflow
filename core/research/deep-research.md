@@ -1,6 +1,6 @@
 # Deep Research
 
-> **Config inputs:** `config.research.costCalibration`, `config.research.constraints`, `config.repos`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
+> **Config inputs:** `config.research.costCalibration`, `config.research.constraints`, `config.repos`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`, `config.execution.cheapSubagentModel`
 
 **Input**: `<research question> [--quick | --deep]`
 
@@ -48,12 +48,13 @@ For each axis write a crisp **objective** + an **output contract** (the exact st
 
 ## Phase 2 — Fan out parallel research subagents
 
-Use general-purpose agents for web research and a read-only exploration agent for codebase slices. Launch them in one batch (respecting the cap; queue extras). Under the **Sequential fallback**, run each axis one at a time in this thread instead. **Every research agent prompt embeds this contract** — it is the quality core of the skill:
+Use the dedicated **`web-researcher`** agent for web-research slices and the read-only codebase-search agent (the pack's `Explore`-equivalent read-only searcher) for codebase slices. Both are **leaf agents with no delegation tool — a worker structurally *cannot* spawn its own sub-agents** — which is the hard cap that stops recursive fan-out from blowing the session's rate-limit window. **Per-worker effort/model:** run the research workers on a **mid-tier model at medium effort**, and **never bump either research worker to the strongest/most-expensive model** — research is read-and-synthesize, not the orchestrator's hard reasoning. Where the host supports per-subagent model selection, route via `{{config.execution.cheapSubagentModel}}`. Launch them in one batch (respecting the cap; queue extras). Under the **Sequential fallback**, run each axis one at a time in this thread instead. **Every research agent prompt embeds this contract** — it is the quality core of the skill:
 
 > **Objective:** <the slice's narrow goal>.
 > **Answer exactly these questions:** <numbered list>.
 > **How:** Do *deep* research — multiple searches, follow citations, go past the first page. **Fetch primary/official sources** (docs, pricing, changelog, spec, release notes) and **verify each load-bearing fact against the LIVE page** — do NOT answer from memory; prices/limits/features change. Get **current, dated** info ("as of <today's year>"); note when a source was last updated.
 > **Return:** a short recommendation up top, then a section per question with **concrete facts** (exact amounts, limits, version numbers) and a **source URL** for each. **Separate hard cited facts from your own inference — flag inferences and state confidence.** Resolve any contradiction you hit rather than reporting both. Decision-ready, no padding.
+> **You are a leaf.** Do the slice yourself — never spawn a sub-agent (you have no tool to). If it's too big, narrow it and say so.
 
 For **Deep** mode, give parallel agents **distinct lenses** on the same target (one "official pricing", one "real-world gotchas/forums", one "head-to-head vs alternatives") instead of N identical searches — diversity surfaces what redundancy can't.
 
@@ -109,6 +110,15 @@ Offer (don't do unsolicited):
 - **Hand back a survey with no recommendation.** Be opinionated about which option has the best leverage for *this* project.
 - **Over-prescribe.** Don't recommend larger-scale isolation/tooling than `{{config.research.costCalibration}}` warrants; right-size cost and effort.
 - **Fabricate URLs or numbers.** A missing/unverifiable fact is reported as such, never invented.
+- **Let a research worker spawn its own sub-agents** — workers are the leaf `web-researcher` / codebase-search types with no delegation tool. For fan-out wider than the concurrency cap, or a loop-until-dry over a big space, escalate to a **structural batch runner** (next section) — don't hand-roll recursive agent calls.
 - **Exceed the `{{config.execution.maxParallelSubagents}}` concurrency cap** unless the user opted into more.
 - **Loop past diminishing returns**, or run forever chasing a marginally better source.
 - **Implement or refactor during research** — findings first; write code only if the user asks after seeing the recommendation.
+
+---
+
+## When to escalate to a structural batch runner
+
+For **large** research — many options × dimensions, several waves of fan-out, or a loop-until-dry over a big space (Deep mode heading past ~two waves) — reach for the host's **structural orchestration mechanism** if it has one: a concurrency-capped batch runner that runs the fan-out from a script *outside* this context. It caps concurrency structurally (e.g. to a CPU-bound limit) and carries a **lifetime agent cap** — the backstop that raw recursive agent calls lack against runaway fan-out.
+
+**Propose, then ask — never switch to it silently.** When Deep-mode research is heading past a couple of waves or a wide fan-out, pause and ask the user *before* authoring the batch script — this mechanism requires explicit opt-in. If they decline, stay here with the leaf-worker fan-out at the `{{config.execution.maxParallelSubagents}}` cap. Either way the same Phase 1→5 method maps cleanly onto the batch script (parallel/pipeline stages for the fan-out, a loop for saturation, a synthesis stage).

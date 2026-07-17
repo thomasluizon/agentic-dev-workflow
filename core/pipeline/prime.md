@@ -86,7 +86,9 @@ Spawn ONE subagent per issue, **in parallel**. Each subagent:
 
 - Has its working directory set to the primary repo's worktree path for that issue.
 - Runs this skill in single-issue mode for `N` inside its worktree.
-- Reports back: issue title, routed repos, parity flag, 3-bullet summary of the acceptance criteria.
+- Reports back: issue title, routed repos, parity flag, 3-bullet summary of the acceptance criteria, and the open questions / risks (the downstream grill agenda).
+
+**Named-agent model override:** when `{{config.execution.hasNamedAgentRegistry}}` is true (a named priming agent owns this fan-out), that agent carries its own model/effort routing in its agent definition — **never pass a `model` override at the call site.** A call-site override takes precedence over the agent's own frontmatter and silently defeats the routing.
 
 **Concurrency cap: `{{config.execution.maxParallelSubagents}}` subagents at a time.** Queue the rest and run them as a follow-up batch when the first completes.
 

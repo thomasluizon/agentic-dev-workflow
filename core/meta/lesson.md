@@ -13,6 +13,12 @@ pattern is a GATED, GRADUATING loop: capture to a staging file, the user approve
 anything machine-checkable graduates OUT of prose into a hook or lint/analyzer rule so it
 costs zero instruction budget and cannot be forgotten.
 
+This is measured, not a hunch: instruction adherence decays as context grows — roughly ~100%
+at ~10 instructions down to ~69% at ~500 — and pure prohibitions decay worse than requirements
+(~73% → ~20%). A "never do X" memory note is therefore the weakest possible form of a rule,
+which is exactly WHY a machine-checkable lesson should graduate out of prose into a
+deterministic gate (a hook or a lint/analyzer rule) that a growing context cannot erode.
+
 ## Trigger
 
 Only capture on a genuine signal: the user explicitly corrected you, OR the same mistake has

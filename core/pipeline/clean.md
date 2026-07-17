@@ -23,10 +23,11 @@ git -C <repo.path> branch --show-current
 ```bash
 git -C <repo.path> worktree list
 ```
-For each worktree that is NOT the main working directory, remove it:
+For each worktree that is NOT the main working directory, remove it **without `--force`**:
 ```bash
-git -C <repo.path> worktree remove <worktree-path> --force
+git -C <repo.path> worktree remove <worktree-path>
 ```
+**Windows junction / symlink hazard — do NOT use `--force`.** If a worktree contains a directory junction or symlink (a linked sibling repo, a shared `node_modules`, etc.), `git worktree remove --force` follows the link and deletes the link *target's* contents, not the link — irreversible data loss. First unlink any junction/symlink dirs inside the worktree (`cmd //c rmdir "<link>"` on Windows, which removes the link without touching its target; `rm "<link>"` for a POSIX symlink), verify the worktree is clean with `git -C <repo.path> status`, THEN run `git worktree remove` without `--force`. If a worktree legitimately holds uncommitted changes you mean to discard, confirm with the user rather than reaching for `--force`.
 
 3. **Delete all local branches** except the protected branches (`{{config.branchNaming.protectedBranches}}`) and the current branch:
 ```bash
@@ -52,5 +53,5 @@ If nothing to clean in a repo, report "Already clean."
 ## Rules
 - NEVER delete a protected branch (`{{config.branchNaming.protectedBranches}}`).
 - NEVER delete the currently checked-out branch.
-- Use `--force` on worktree remove to handle uncommitted changes.
+- NEVER use `git worktree remove --force`: a junction/symlink inside the worktree makes it delete the link's TARGET (data loss on Windows especially). Unlink junctions/symlinks first (`cmd //c rmdir` / `rm`), verify with `git status`, then remove without `--force`.
 - Operate over every repo in `{{config.repos}}`, not just the launch repo.

@@ -100,6 +100,15 @@ as subagents when the host allows, gated by what the diff touches and by config.
 changed files. Fold every result back into the Phase 3 findings under the matching rubric
 dimension.
 
+**Await them synchronously — this is a blocking fan-out, not fire-and-forget.** Spawn the gated
+subagents, then wait for every one to return *within this same turn* and fold its result in
+before moving to Phase 5. Never end your turn with a subagent still running on the expectation
+that a completion notification will wake you back up: a CI or headless wrapper runs a single
+execution and delivers **no** background-completion wake-up, so yielding there strands the
+review half-done and posts nothing. If for any reason you cannot await a subagent within the
+turn, run that dimension's check **inline yourself** rather than deferring — the review is not
+finished until every gated dimension has returned.
+
 | Check | Gate (fire when…) | Folds into dimension |
 |---|---|---|
 | Parity | `{{config.parity.enabled}}` true **and** a file under a `{{config.parity.mirrors}}` root changed | Parity (#9) |

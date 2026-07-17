@@ -1,6 +1,6 @@
 # Prod-Readiness
 
-> **Config inputs:** `config.repos`, `config.auditAnchors.scale`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
+> **Config inputs:** `config.repos`, `config.review.correctnessScanners`, `config.auditAnchors.scale`, `config.execution.maxParallelSubagents`, `config.execution.hasNamedAgentRegistry`
 
 **Input**: blank (all repos in `{{config.repos}}`) or a repo/path narrowing it.
 
@@ -36,7 +36,8 @@ run; the calibration table is this skill's authority for what it **runs** versus
 runs its own coverage contract over the inventory + the §2 challenge over its own ops findings; it
 inherits each child audit's verify and each child's loop; it merges every child ledger).
 
-**Build the binding inventory (§1)** — exactly **nine items**:
+**Build the binding inventory (§1)** — up to **ten items** (item 10 is present only when
+`{{config.review.correctnessScanners}}` is non-empty):
 
 | # | Inventory item | Kind | Owner of the analysis |
 |---|---|---|---|
@@ -49,6 +50,13 @@ inherits each child audit's verify and each child's loop; it merges every child 
 | 7 | Background durability | ops check | this orchestrator (own §2 challenge) |
 | 8 | Backups | ops check | this orchestrator (own §2 challenge) |
 | 9 | Staging | ops check | this orchestrator (own §2 challenge) |
+| 10 | Configured correctness scanners | scanner | this orchestrator (runs each in-scope scanner from `{{config.review.correctnessScanners}}`) |
+
+**Item 10** is **conditional on config**: when `{{config.review.correctnessScanners}}` is empty it
+is **N/A** and drops out of the inventory (do not list it, do not let it block); when non-empty it
+covers every configured scanner whose `scope` intersects the repos in play. A configured scanner
+whose scope does **not** match the resolved scope is a **legitimate skip** (like React-only tooling
+under a backend-only scope), not a coverage gap.
 
 This list is **binding**: by the end every item is either **(a) covered with a verdict** (in the
 tier-tagged findings + the coverage table) or **(b) in the Deferred ledger with a one-line
@@ -141,6 +149,33 @@ The same shape the children emit, with an ops `check` category in place of a thr
 
 ---
 
+## Phase 3.5 — Configured correctness scanners (inventory item 10)
+
+**Skip this phase entirely when `{{config.review.correctnessScanners}}` is empty** — item 10 is
+N/A and never blocks. Otherwise, this is the orchestrator's own deterministic layer: for **each**
+scanner in `{{config.review.correctnessScanners}}` whose `scope` intersects the repos in play, run
+its `command` at full launch scope, apply its `excludeGlobs`, and collect its diagnostics. This is
+a launch gate distinct from the same scanner surfaced inside `audit-code-quality` — here a scanner
+**error** is treated as a real production-correctness bug and elevated onto the verdict.
+
+Normalize each scanner diagnostic onto the consolidated spine, tagged `[{scanner.name} · {rule}]`
+with its `location` and `fix`:
+
+- a scanner **error → its `errorSeverity`** (default `High`; a scanner may configure `Blocker`),
+- a scanner **warning → its `warningSeverity`** (default `Low`/`Info`).
+
+Group the (typically many) warnings by rule with a count rather than listing each. A scanner whose
+`scope` does not match the resolved scope returns "did not run — out of scope" (a legitimate skip);
+a scanner that was configured for an in-scope role but **failed to run** is a **Deferred coverage
+gap** (→ CONDITIONAL in Phase 5), never silently treated as clean.
+
+> *Example (illustrative only, never required):* a React-correctness scanner configured for
+> `scope: [web, mobile]` runs its full-repo scan under a `ui`/all-repos scope, maps its real-bug
+> errors to High and its perf/a11y nits to Low/Info, and is a legitimate skip under a backend-only
+> scope.
+
+---
+
 ## Phase 4 — Verify (adversarial + consolidation)
 
 This orchestrator **runs** §2 over its own ops findings and **inherits** each child's verify and
@@ -179,11 +214,14 @@ cross-skill spine is "Critical / High ≡ Tier 1 / Tier 2 for security":
 
 | Consolidated tier | Maps from |
 |---|---|
-| **Blocker** | security Tier 1 · tests Critical · performance High/Critical · code-quality Critical · ops Blocker |
-| **High** | security Tier 2 · tests High · performance Medium · code-quality High · ops High |
+| **Blocker** | security Tier 1 · tests Critical · performance High/Critical · code-quality Critical · ops Blocker · a **correctness-scanner error whose `errorSeverity` is Blocker** |
+| **High** | security Tier 2 · tests High · performance Medium · code-quality High · ops High · a **correctness-scanner error** (default `errorSeverity`) |
 | **Medium** | tests Medium · performance Medium · code-quality Medium · ops Medium |
-| **Low / Info** | performance Low/Info · code-quality Low/Info |
+| **Low / Info** | performance Low/Info · code-quality Low/Info · **correctness-scanner warnings** (perf/a11y/maintainability nits) |
 | **Out-of-scope / acknowledged** | security Tier 3 · enterprise-only ops |
+
+Tag each correctness-scanner finding `[{scanner.name} · {rule}]` and map it by the scanner's own
+configured `errorSeverity` / `warningSeverity` (defaults `High` / `Low`).
 
 ### Report skeleton
 
@@ -211,7 +249,7 @@ cross-skill spine is "Critical / High ≡ Tier 1 / Tier 2 for security":
 ## Out of scope (acknowledged)
 {one line each: security Tier 3 + enterprise-only ops — deliberately deferred}
 
-## Coverage (the binding 9-item inventory)
+## Coverage (the binding inventory)
 
 | # | Inventory item | Ran? | Result |
 |---|---|---|---|
@@ -224,13 +262,16 @@ cross-skill spine is "Critical / High ≡ Tier 1 / Tier 2 for security":
 | 7 | Background durability | … | … |
 | 8 | Backups | … | … |
 | 9 | Staging | … | … |
+| 10 | Configured correctness scanners | yes/skipped(scope)/deferred/N-A | {per scanner: error+warning counts, or "skipped — out of scope" / "did not run — deferred" / "N/A — none configured"} |
 
 ## Deferred ledger (verification-protocol §4)
 
 {The merged ledger: every child report's own "Deferred" section, carried in verbatim and attributed
 (e.g. "from security: Tier-3 WAF/SIEM"), PLUS the orchestrator's ops Deferred — backups ("verify in
-the DB console"), any audit that failed to run (named as a blocker), enterprise-only ops. Every one
-of the 9 inventory items appears here or in the findings/coverage above. Nothing absent.}
+the DB console"), any audit that failed to run (named as a blocker), enterprise-only ops, plus any
+configured correctness scanner that was in-scope but failed to run. Every inventory item — including
+item 10 when `{{config.review.correctnessScanners}}` is non-empty — appears here or in the
+findings/coverage above. Nothing absent.}
 
 ## What's solid
 
@@ -241,10 +282,14 @@ of the 9 inventory items appears here or in the findings/coverage above. Nothing
 
 One calibrated line, computed — never hardcoded:
 
-- **GO** only if **zero Blockers** **AND** all **9** inventory items produced a verdict (every audit
-  ran, every ops check resolved or is a legitimately Deferred un-verifiable like backups).
+- **GO** only if **zero Blockers** **AND** every inventory item produced a verdict (every audit ran,
+  every ops check resolved or is a legitimately Deferred un-verifiable like backups). **When
+  `{{config.review.correctnessScanners}}` is non-empty and a scanner is in-scope, GO additionally
+  requires zero scanner errors** — an unresolved scanner error is a real correctness bug. When the
+  list is empty, item 10 is N/A and never gates.
 - **CONDITIONAL** if no Blockers but some items are Deferred in a way that gates launch (e.g. backups
-  unverified, staging gate absent) — name the conditions.
+  unverified, staging gate absent, **outstanding correctness-scanner errors, or a configured scanner
+  that did not run for its in-scope role**) — name the conditions.
 - **NO-GO** if any Blocker stands.
 - **A child audit that failed to run forces at most CONDITIONAL and names itself as the blocker** — a
   partial sweep can never read green. The coverage table makes any non-running audit visible.
@@ -269,7 +314,7 @@ not by re-deriving their findings.
 | Medium | {N} |
 | Low / Info | {N} |
 
-**Inventory (9)**: security {ran/deferred} · tests {…} · performance {…} · code-quality {…} · observability {…} · multi-instance {…} · background durability {…} · backups {…} · staging {…}
+**Inventory**: security {ran/deferred} · tests {…} · performance {…} · code-quality {…} · observability {…} · multi-instance {…} · background durability {…} · backups {…} · staging {…} · correctness-scanners {per-scanner error/warning counts, or "N/A — none configured"}
 **Report**: `{{config.paths.auditsDir}}/prod-readiness-{scope}.md`
 **Top blocker**: {the single highest-priority thing standing between here and launch, or "none"}
 ```
