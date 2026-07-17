@@ -91,6 +91,8 @@ paths:
   researchDir: .workflow/research   # `deep-research` output
   reportsDir: .workflow/reports     # `pr-review` + `implement` completion reports
   auditsDir: .workflow/audits       # audit + `prod-readiness` output
+  specsDir: .workflow/specs         # `drive` living specs; `batch-grill` writes decisions here for `drive`
+  toolsDir: tools                   # `make-tool` output — reusable, agent-callable scripts
 
 # ---------------------------------------------------------------------------
 # conventionsDocs — the docs the `prime` skill loads to build project context
@@ -164,6 +166,17 @@ review:
   frameworkTokens: []
     # - "[Authorize]"
     # - "httpOnly"
+  # Deterministic correctness scanners the `audit-code-quality` + `prod-readiness`
+  # skills run BEFORE the judgement fan-out, mapping scanner errors → High and
+  # warnings → Low/Info. Optional and stack-specific — empty → the scanner phase
+  # is skipped entirely. Each: { name, command, scope, errorSeverity, warningSeverity, excludeGlobs }.
+  correctnessScanners: []
+    # - name: react-doctor            # e.g. a React-correctness scanner
+    #   command: "npx react-doctor --scope changed"
+    #   scope: [web, mobile]          # which repo roles it applies to
+    #   errorSeverity: High
+    #   warningSeverity: Low
+    #   excludeGlobs: ["design/handoff/**"]
 
 # ---------------------------------------------------------------------------
 # auditAnchors — anchors the audit skills calibrate severity against, so a
@@ -248,6 +261,21 @@ execution:
   # synthesis. Empty → every step uses the session's default model. Only takes
   # effect when the host supports per-subagent model selection.
   cheapSubagentModel: ""
+  # Optional. The host tool's non-interactive / headless invocation, used by
+  # `night-run` to run one fresh agent session per queued task (e.g. "claude -p"
+  # for Claude Code). Empty → the host's default headless entry point.
+  headlessCommand: ""
+
+# ---------------------------------------------------------------------------
+# ci — the continuous-integration surface `rollup` reads. `rollup` reports ONE
+# GREEN/RED verdict from the LATEST base-branch run of each tracked gate across
+# `repos`, reading run conclusions only (it runs nothing). Empty provider →
+# `rollup` reports UNAVAILABLE rather than guessing.
+# ---------------------------------------------------------------------------
+ci:
+  provider: ""                                 # e.g. github-actions | gitlab-ci | none
+  gates: []                                    # tracked gate/workflow names; mark blocking vs advisory per project
+                                               # e.g. [{ name: build, blocking: true }, { name: nightly, blocking: false }]
 
 # ---------------------------------------------------------------------------
 # hooks — the SOURCE for the dual-target hook engine's runtime policy. setup

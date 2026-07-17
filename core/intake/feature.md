@@ -29,7 +29,7 @@ Hold `--milestone` and `--no-create` to forward to `stories` in Stage 3.
 
 ## Stage 1 — Grill (clarifying questions) [warm path only]
 
-Apply the `grill` skill's posture: walk the load-bearing product branches **one question at a time**, stating your recommended answer before asking. If a question is answerable from the codebase, explore it instead of asking. Write no artifact during this stage.
+Invoke the `grill` skill — it owns all grilling mechanics (batching, recommended answers, and researching the codebase instead of asking); do not restate or override them. Grill the load-bearing PRODUCT branches, and write no artifact during this stage. (The resolved decisions are captured durably by Stage 2's `prd`, which synthesizes them into the PRD file — so no separate paper trail is needed here.)
 
 Stop when these are pinned: **scope** (in / out), **platforms/repos** (which of `{{config.issueTracker.repo}}`'s surfaces and which repo roles), **API & data surface** (endpoints, shapes, migrations, or "none"), and **out-of-scope**. This warms the conversation so the PRD step has real material — it is not busywork.
 

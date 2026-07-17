@@ -168,14 +168,15 @@ runtime deps) — **no SDLC constant is baked in**. See `core/hooks/README.md`.
 
 | Group | Skills |
 |---|---|
-| **Pipeline** | `prime` · `grill` · `plan` · `implement` · `validate` · `execute` · `ship` · `clean` |
-| **Review** | `pr-review` · `audit-security` · `audit-tests` · `audit-performance` · `audit-code-quality` · `thermo-nuclear` · `prod-readiness` · `second-opinion` |
+| **Pipeline** | `prime` · `grill` · `plan` · `implement` · `validate` · `execute` · `drive` (resumable multi-session epic conductor) · `batch-grill` (frontier grilling across correlated issues) · `night-run` (unattended queue-drain to draft PRs) · `ship` · `clean` |
+| **Review** | `pr-review` · `audit-security` · `audit-tests` · `audit-performance` · `audit-code-quality` · `thermo-nuclear` · `prod-readiness` · `commit-sweep` (cross-commit regression backstop) · `second-opinion` |
 | **Intake** | `feature` (idea → PRD → issues) · `prd` (warm or cold) · `stories` (PRD → tracer-bullet issues) |
 | **Research** | `deep-research` · `llm-council` |
-| **Ops** | `investigate` (root-cause a prod incident end to end, read-only until a human gate) |
-| **Meta** | `handoff` (compact a session to resume clean) · `lesson` (capture a correction as a graduating gate) · `setup-statusline` (install the portable status line: model@effort, context bar, branch, rate-limit usage, account) · `update-harness` (monthly, web-grounded staleness audit) |
+| **Ops** | `investigate` (root-cause a prod incident end to end, read-only until a human gate) · `rollup` (cross-repo CI-health GREEN/RED verdict) |
+| **Meta** | `handoff` (compact a session to resume clean) · `lesson` (capture a correction as a graduating gate) · `make-tool` (promote a repeated incantation to a reusable script) · `setup-statusline` (install the portable status line: model@effort, context bar, branch, rate-limit usage, account) · `update-harness` (monthly, web-grounded staleness audit) |
 | **Setup** | `setup-harness` (research → discover → interview → doc decode → tier every rule → the editable gate → generate + self-verify) |
-| **Agents** | `security-reviewer` (generic; parity / i18n / contract checks are config-gated inside `pr-review`) |
+| **Agents** | `security-reviewer` · `audit-readonly` (read-only assessment fan-out worker) · `web-researcher` (leaf web-research worker for `deep-research`) · `primer` (loads one issue → structured summary) — parity / i18n / contract checks are config-gated inside `pr-review` |
+| **Judgement rules** | `_shared/rules/` — activity-specific standing rules (`debugging`, `review-and-audit`, `planning-and-artifacts`) the disposition baseline points at; a project overlay adds to them |
 
 `execute` is the gated conductor (`issue → prime → grill → plan → implement`) with hard,
 default-deny stage gates. Every review/audit skill shares one `verification-protocol`
